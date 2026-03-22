@@ -8,7 +8,59 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./config.js"></script>
+
+  <script>
+    // ── Credenciales — reemplazá con las tuyas ──────────────
+    const SUPABASE_URL        = "https://bpdeektcggmwrngnljho.supabase.co";
+    const SUPABASE_ANON_KEY   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZGVla3RjZ2dtd3JuZ25samhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTU0NzIsImV4cCI6MjA4OTczMTQ3Mn0.mJ91daJ5IVFt_Fy1z61dcCq6kZrfjXLoIpQmSqkTKis";
+    const UPLOAD_WORKER_URL   = "marketplace-upload.santinomazza09.workers.dev";
+    // ────────────────────────────────────────────────────────
+
+    // Inicializar cliente Supabase como variable global "db"
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Función global de subida de imágenes
+    async function compressImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            let { width, height } = img;
+            const maxDim = 1200;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) { height = (height * maxDim) / width; width = maxDim; }
+              else { width = (width * maxDim) / height; height = maxDim; }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+            let quality = 0.85;
+            const tryCompress = () => {
+              canvas.toBlob((blob) => {
+                if (blob.size / 1024 > 150 && quality > 0.3) { quality -= 0.1; tryCompress(); }
+                else resolve(new File([blob], file.name, { type: "image/jpeg" }));
+              }, "image/jpeg", quality);
+            };
+            tryCompress();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadImage(file) {
+      const compressed = await compressImage(file);
+      const formData = new FormData();
+      formData.append("file", compressed, file.name);
+      const res = await fetch(UPLOAD_WORKER_URL, { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Error al subir imagen");
+      return res.json(); // { url, key }
+    }
+  </script>
 </head>
 <body style="margin:0;padding:0;background:#F8F7F4;">
   <div id="root"></div>
