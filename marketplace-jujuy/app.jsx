@@ -70,11 +70,69 @@ function App() {
   const [pubMsg,  setPubMsg]  = useState("");
 
   // ── Init ────────────────────────────────────────────────
+  // ── Init ────────────────────────────────────────────────
   useEffect(function(){
     window.addEventListener("scroll",function(){ setScrolled(window.scrollY>60); });
-    db.auth.getUser().then(function(r){ if(r.data&&r.data.user) setUser(r.data.user); });
+
+    // Función maestra que lee la URL y actualiza la pantalla
+    const handleRoute = async (currentUser) => {
+      const path = window.location.pathname;
+      const params = new URLSearchParams(window.location.search);
+
+      // 1. Ruta: /publicacion/ID
+      if (path.startsWith('/publicacion/')) {
+        const id = path.split('/')[2];
+        if (id) {
+          const r = await db.from("listings").select("*,listing_images(url)").eq("id", id).single();
+          if (r.data) {
+            setListingModal(r.data); // Abre el modal silenciosamente
+            db.from("listings").update({views:(r.data.views||0)+1}).eq("id",id).then(); // Suma visita
+          }
+        }
+      } 
+      // 2. Ruta: /perfil
+      else if (path === '/perfil') {
+        if (currentUser) {
+          setProfileModal(true);
+          setMyLoading(true);
+          const r = await db.from("listings").select("*,listing_images(url)").eq("user_id", currentUser.id).order("created_at",{ascending:false});
+          setMyListings(r.data||[]);
+          setMyLoading(false);
+        } else {
+          // Si no está logueado, lo mandamos al inicio y le pedimos login
+          window.history.replaceState({}, '', '/');
+          setAuthMode("login");
+          setAuthModal(true);
+        }
+      } 
+      // 3. Ruta: /busqueda?q=termino
+      else if (path === '/busqueda') {
+        const q = params.get('q');
+        if (q) setSearch(q);
+      } 
+      // Ruta: Inicio (limpiar todo)
+      else {
+        setListingModal(null);
+        setProfileModal(false);
+        setSearch("");
+      }
+    };
+
+    // Inicializar usuario y evaluar ruta actual
+    db.auth.getUser().then(function(r){ 
+      const currentUser = r.data && r.data.user ? r.data.user : null;
+      setUser(currentUser); 
+      handleRoute(currentUser);
+    });
+
     db.auth.onAuthStateChange(function(_,session){ setUser(session?session.user:null); });
     loadData();
+
+    // ESTO ES CLAVE: Escuchar cuando el usuario presiona "Atrás" o "Adelante" en el navegador
+    window.addEventListener('popstate', function() {
+      db.auth.getUser().then(r => handleRoute(r.data?.user));
+    });
+
   },[]);
 
   async function loadData(){
@@ -114,13 +172,18 @@ function App() {
   // ── Abrir anuncio individual → incrementar views ─────────
   async function openListing(l){
     setListingModal(l);
+    // Cambia la URL a /publicacion/123
+    window.history.pushState({}, '', '/publicacion/' + l.id); 
     try{ await db.from("listings").update({views:(l.views||0)+1}).eq("id",l.id); }catch(e){}
   }
 
   // ── Perfil del usuario ───────────────────────────────────
   async function openProfile(){
     if(!user) return;
-    setProfileModal(true); setMyLoading(true);
+    setProfileModal(true);
+    // Cambia la URL a /perfil
+    window.history.pushState({}, '', '/perfil');
+    setMyLoading(true);
     try{
       const r=await db.from("listings").select("*,listing_images(url)").eq("user_id",user.id).order("created_at",{ascending:false});
       setMyListings(r.data||[]);
@@ -267,7 +330,22 @@ function App() {
         ),
         React.createElement("div",{style:{flex:1,maxWidth:480,background:"rgba(255,255,255,.1)",borderRadius:12,display:"flex",alignItems:"center",padding:"0 14px",height:42,border:"1px solid rgba(255,255,255,.15)"}},
           React.createElement("span",{style:{marginRight:8,fontSize:16,opacity:.7}},"🔍"),
-          React.createElement("input",{style:{flex:1,border:"none",outline:"none",fontSize:15,fontFamily:"inherit",background:"transparent",color:"white"},placeholder:"Buscar en todos los clasificados...",value:search,onChange:function(e){setSearch(e.target.value);}})
+          React.createElement("input", {
+  style: {flex:1, border:"none", outline:"none", fontSize:15, fontFamily:"inherit", background:"transparent", color:"white"},
+  placeholder: "Buscar en todos los clasificados...",
+  value: search,
+  onChange: function(e) {
+    const val = e.target.value;
+    setSearch(val);
+    
+    // Cambiamos la URL a /busqueda?q=... sin ensuciar el historial
+    if (val) {
+      window.history.replaceState({}, '', '/busqueda?q=' + encodeURIComponent(val));
+    } else {
+      window.history.replaceState({}, '', '/');
+    }
+  }
+})
         ),
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
           user
@@ -526,8 +604,8 @@ function App() {
       onMouseEnter:function(e){e.currentTarget.style.transform="scale(1.1)";},onMouseLeave:function(e){e.currentTarget.style.transform="scale(1)";}
     },"✏️"),
 
-    // ── MODAL: ANUNCIO INDIVIDUAL
-    listingModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setListingModal(null);}},
+// ── MODAL: ANUNCIO INDIVIDUAL
+    listingModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setListingModal(null); window.history.pushState({}, '', '/');}}},
       React.createElement("div",{className:"md",style:{maxWidth:600}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}},
           React.createElement("div",null,
@@ -536,7 +614,7 @@ function App() {
               listingModal.subcategory?" › "+listingModal.subcategory:""
             )
           ),
-          React.createElement("button",{onClick:function(){setListingModal(null);},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
+          React.createElement("button",{onClick:function(){setListingModal(null); window.history.pushState({}, '', '/');},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
         ),
         // Imágenes
         listingModal.listing_images&&listingModal.listing_images.length>0&&
@@ -559,15 +637,15 @@ function App() {
       )
     ),
 
-    // ── MODAL: PERFIL / MIS PUBLICACIONES
-    profileModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setProfileModal(false);}},
+// ── MODAL: PERFIL / MIS PUBLICACIONES
+    profileModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setProfileModal(false); window.history.pushState({}, '', '/');}}},
       React.createElement("div",{className:"md",style:{maxWidth:640}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
           React.createElement("div",null,
             React.createElement("div",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E"}},"👤 Mi perfil"),
             React.createElement("div",{style:{fontSize:12,color:"#9CA3AF",marginTop:3}},user&&user.email)
           ),
-          React.createElement("button",{onClick:function(){setProfileModal(false);},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
+          React.createElement("button",{onClick:function(){setProfileModal(false); window.history.pushState({}, '', '/');},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
         ),
         React.createElement("div",{style:{fontSize:16,fontWeight:700,color:"#1A1A2E",marginBottom:12}},"Mis publicaciones"),
         myLoading
@@ -612,7 +690,7 @@ function App() {
               )
       )
     ),
-
+    
     // ── MODAL: AUTH
     authModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setAuthModal(false);setAuthMsg("");}}},
       React.createElement("div",{className:"md",style:{maxWidth:440}},
