@@ -37,6 +37,10 @@ function getCat(id) { return categories.find(function(c){return c.id===id;}); }
 
 // ─── App ─────────────────────────────────────────────────────
 function App() {
+  // ── ESTADOS DEL ENRUTADOR (NUEVO) ───────────────────────
+  const [currentView,   setCurrentView]   = useState("home"); // "home", "listing", "profile", "search"
+  const [currentListing,setCurrentListing]= useState(null); 
+
   const [search,        setSearch]        = useState("");
   const [activeCat,     setActiveCat]     = useState(null);
   const [catListings,   setCatListings]   = useState([]);
@@ -44,12 +48,13 @@ function App() {
   const [megaOpen,      setMegaOpen]      = useState(false);
   const [scrolled,      setScrolled]      = useState(false);
   const [activeTab,     setActiveTab]     = useState("Todos");
+  
+  // Modales que sí se mantienen (Login, Seguridad y Publicar)
   const [publishModal,  setPublishModal]  = useState(false);
   const [authModal,     setAuthModal]     = useState(false);
   const [authMode,      setAuthMode]      = useState("login");
   const [secModal,      setSecModal]      = useState(false);
-  const [listingModal,  setListingModal]  = useState(null);  // anuncio seleccionado
-  const [profileModal,  setProfileModal]  = useState(false); // perfil del usuario
+  
   const [myListings,    setMyListings]    = useState([]);
   const [myLoading,     setMyLoading]     = useState(false);
 
@@ -69,56 +74,55 @@ function App() {
   const [pubBusy, setPubBusy] = useState(false);
   const [pubMsg,  setPubMsg]  = useState("");
 
-  // ── Init ────────────────────────────────────────────────
-  // ── Init ────────────────────────────────────────────────
+  // ── Init & Enrutador ────────────────────────────────────
   useEffect(function(){
     window.addEventListener("scroll",function(){ setScrolled(window.scrollY>60); });
 
-    // Función maestra que lee la URL y actualiza la pantalla
     const handleRoute = async (currentUser) => {
       const path = window.location.pathname;
       const params = new URLSearchParams(window.location.search);
 
-      // 1. Ruta: /publicacion/ID
       if (path.startsWith('/publicacion/')) {
         const id = path.split('/')[2];
         if (id) {
           const r = await db.from("listings").select("*,listing_images(url)").eq("id", id).single();
           if (r.data) {
-            setListingModal(r.data); // Abre el modal silenciosamente
-            db.from("listings").update({views:(r.data.views||0)+1}).eq("id",id).then(); // Suma visita
+            setCurrentListing(r.data);
+            setCurrentView("listing");
+            db.from("listings").update({views:(r.data.views||0)+1}).eq("id",id).then();
+            window.scrollTo(0,0);
           }
         }
       } 
-      // 2. Ruta: /perfil
       else if (path === '/perfil') {
         if (currentUser) {
-          setProfileModal(true);
+          setCurrentView("profile");
           setMyLoading(true);
           const r = await db.from("listings").select("*,listing_images(url)").eq("user_id", currentUser.id).order("created_at",{ascending:false});
           setMyListings(r.data||[]);
           setMyLoading(false);
+          window.scrollTo(0,0);
         } else {
-          // Si no está logueado, lo mandamos al inicio y le pedimos login
           window.history.replaceState({}, '', '/');
+          setCurrentView("home");
           setAuthMode("login");
           setAuthModal(true);
         }
       } 
-      // 3. Ruta: /busqueda?q=termino
       else if (path === '/busqueda') {
-        const q = params.get('q');
-        if (q) setSearch(q);
+        const q = params.get('q') || "";
+        setSearch(q);
+        setCurrentView("search");
+        window.scrollTo(0,0);
       } 
-      // Ruta: Inicio (limpiar todo)
       else {
-        setListingModal(null);
-        setProfileModal(false);
+        setCurrentView("home");
+        setCurrentListing(null);
         setSearch("");
+        window.scrollTo(0,0);
       }
     };
 
-    // Inicializar usuario y evaluar ruta actual
     db.auth.getUser().then(function(r){ 
       const currentUser = r.data && r.data.user ? r.data.user : null;
       setUser(currentUser); 
@@ -128,11 +132,9 @@ function App() {
     db.auth.onAuthStateChange(function(_,session){ setUser(session?session.user:null); });
     loadData();
 
-    // ESTO ES CLAVE: Escuchar cuando el usuario presiona "Atrás" o "Adelante" en el navegador
     window.addEventListener('popstate', function() {
       db.auth.getUser().then(r => handleRoute(r.data?.user));
     });
-
   },[]);
 
   async function loadData(){
@@ -158,31 +160,28 @@ function App() {
     setLoading(false);
   }
 
-  // ── Seleccionar categoría → cargar sus listings ──────────
-  async function selectCat(id){
-    if(activeCat===id){ setActiveCat(null); setCatListings([]); return; }
-    setActiveCat(id); setCatListings([]); setCatLoading(true);
-    try{
-      const r=await db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",id).order("created_at",{ascending:false}).limit(20);
-      setCatListings(r.data||[]);
-    }catch(e){console.error(e);}
-    setCatLoading(false);
+  // ── Navegación (Funciones) ──────────────────────────────
+  function goHome(e) {
+    if(e) e.preventDefault();
+    setSearch("");
+    setCurrentView("home");
+    window.history.pushState({}, '', '/');
+    window.scrollTo(0,0);
   }
 
-  // ── Abrir anuncio individual → incrementar views ─────────
-  async function openListing(l){
-    setListingModal(l);
-    // Cambia la URL a /publicacion/123
-    window.history.pushState({}, '', '/publicacion/' + l.id); 
+  async function openListing(l, isDirectLoad = false){
+    setCurrentListing(l);
+    setCurrentView("listing");
+    if (!isDirectLoad) { window.history.pushState({}, '', `/publicacion/${l.id}`); }
+    window.scrollTo(0,0);
     try{ await db.from("listings").update({views:(l.views||0)+1}).eq("id",l.id); }catch(e){}
   }
 
-  // ── Perfil del usuario ───────────────────────────────────
   async function openProfile(){
     if(!user) return;
-    setProfileModal(true);
-    // Cambia la URL a /perfil
+    setCurrentView("profile");
     window.history.pushState({}, '', '/perfil');
+    window.scrollTo(0,0);
     setMyLoading(true);
     try{
       const r=await db.from("listings").select("*,listing_images(url)").eq("user_id",user.id).order("created_at",{ascending:false});
@@ -191,6 +190,19 @@ function App() {
     setMyLoading(false);
   }
 
+  async function selectCat(id){
+    if(activeCat===id){ setActiveCat(null); setCatListings([]); return; }
+    setActiveCat(id); setCatListings([]); setCatLoading(true);
+    // Si elige una categoría desde otra página, lo devolvemos al inicio para verla
+    if(currentView !== "home"){ goHome(); }
+    try{
+      const r=await db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",id).order("created_at",{ascending:false}).limit(20);
+      setCatListings(r.data||[]);
+    }catch(e){console.error(e);}
+    setCatLoading(false);
+  }
+
+  // ── Acciones de Perfil ──────────────────────────────────
   async function pauseListing(id,current){
     const ns=current==="active"?"paused":"active";
     await db.from("listings").update({status:ns}).eq("id",id);
@@ -198,7 +210,7 @@ function App() {
   }
 
   async function deleteListing(id){
-    if(!confirm("¿Eliminar este anuncio?")) return;
+    if(!confirm("¿Eliminar este anuncio permanentemente?")) return;
     await db.from("listings").delete().eq("id",id);
     setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
     await loadData();
@@ -237,17 +249,33 @@ function App() {
     }
     setAuthBusy(false);
   }
-  async function handleLogout(){ await db.auth.signOut(); }
+  async function handleLogout(){ 
+    await db.auth.signOut(); 
+    if(currentView === "profile") goHome(); // Si cierra sesión en perfil, va a inicio
+  }
 
   // ── Publicar ─────────────────────────────────────────────
   async function handlePublish(e){
     e.preventDefault();
     if(!user){setPublishModal(false);setAuthModal(true);setAuthMode("login");return;}
-    if(!form.title||!form.cat){setPubMsg("❌ Completá el título y la categoría");return;}
+    if(!form.title || !form.cat || !form.phone){
+      setPubMsg("❌ Completá el título, la categoría y el teléfono");
+      return;
+    }
     setPubBusy(true);setPubMsg("");
+    
     try{
       const raw=form.price.replace(/\./g,"");
       const label=form.ptype==="consultar"?"Consultar":(raw?(( form.cur==="USD"?"U$S":"$")+" "+form.price):"Consultar");
+      
+      let uploadedImagesData = [];
+      if(form.files.length && typeof uploadImage === "function"){
+        uploadedImagesData = await Promise.all(form.files.map(async function(file, i){
+          const r = await uploadImage(file);
+          return { url: r.url, r2_key: r.key, position: i };
+        }));
+      }
+
       const ins=await db.from("listings").insert({
         title:form.title,description:form.desc,
         price:form.ptype==="consultar"?null:(parseFloat(raw)||null),
@@ -258,18 +286,24 @@ function App() {
       }).select().single();
       if(ins.error)throw ins.error;
 
-      if(form.files.length&&typeof uploadImage==="function"){
-        const imgs=await Promise.all(form.files.map(async function(file,i){
-          const r=await uploadImage(file);
-          return {listing_id:ins.data.id,url:r.url,r2_key:r.key,position:i};
-        }));
-        await db.from("listing_images").insert(imgs);
+      if(uploadedImagesData.length > 0){
+        const imgsToInsert = uploadedImagesData.map(function(img){
+          return { listing_id: ins.data.id, url: img.url, r2_key: img.r2_key, position: img.position };
+        });
+        await db.from("listing_images").insert(imgsToInsert);
       }
 
       setPubMsg("✅ ¡Publicado con éxito!");
       setForm({title:"",desc:"",price:"",ptype:"valor",cur:"ARS",cat:"",sub:"",loc:"",phone:"",files:[],previews:[]});
       await loadData();
-      setTimeout(function(){setPublishModal(false);setPubMsg("");},1500);
+      
+      // Tras publicar, lo llevamos a su anuncio a página completa
+      setTimeout(async function(){
+        setPublishModal(false); setPubMsg("");
+        const r = await db.from("listings").select("*,listing_images(url)").eq("id", ins.data.id).single();
+        if(r.data) openListing(r.data);
+      },1500);
+      
     }catch(err){setPubMsg("❌ "+(err.message||"Error"));}
     setPubBusy(false);
   }
@@ -277,11 +311,15 @@ function App() {
   const filtered=recent.filter(function(l){
     return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
   });
+  const searchResults=recent.filter(function(l){
+    return search && l.title.toLowerCase().includes(search.toLowerCase());
+  });
+  
   const catSubs=(getCat(form.cat)||{}).subs||[];
   const activeCatData=getCat(activeCat);
 
   // ── RENDER ───────────────────────────────────────────────
-  return React.createElement("div",{style:{fontFamily:"'Sora','Nunito',sans-serif",background:"#F8F7F4",minHeight:"100vh",color:"#1A1A2E"}},
+  return React.createElement("div",{style:{fontFamily:"'Sora','Nunito',sans-serif",background:"#F8F7F4",minHeight:"100vh",color:"#1A1A2E",display:"flex",flexDirection:"column"}},
     React.createElement("style",null,`
       @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
       *{box-sizing:border-box;margin:0;padding:0}
@@ -290,7 +328,7 @@ function App() {
       .nl:hover{background:rgba(255,255,255,.18)}
       .cp{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;background:white;border-radius:16px;cursor:pointer;transition:all .25s cubic-bezier(.34,1.56,.64,1);border:2px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.06)}
       .cp:hover{transform:translateY(-5px) scale(1.04);box-shadow:0 12px 28px rgba(0,0,0,.12)}
-      .card{background:white;border-radius:16px;overflow:hidden;cursor:pointer;transition:all .25s;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #F0EDE8}
+      .card{background:white;border-radius:16px;overflow:hidden;cursor:pointer;transition:all .25s;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #F0EDE8;display:flex;flex-direction:column}
       .card:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(0,0,0,.12)}
       .rc{display:flex;gap:12px;align-items:center;background:white;border-radius:12px;padding:12px;cursor:pointer;transition:all .2s;border:1px solid #F0EDE8}
       .rc:hover{transform:translateX(4px);box-shadow:0 6px 20px rgba(0,0,0,.09)}
@@ -315,42 +353,47 @@ function App() {
       .irb{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;font-family:inherit}
       .irb:hover{background:rgba(220,38,38,.85)}
       .tag{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:700}
-      @media(max-width:600px){.mg{grid-template-columns:repeat(2,1fr)!important}}
+      
+      /* Utilidades de Grid para pantallas completas */
+      .page-container { flex: 1; max-width: 1200px; margin: 0 auto; padding: 40px 20px; width: 100%; }
+      .listing-grid { display: grid; grid-template-columns: 1fr 400px; gap: 40px; }
+      @media(max-width: 900px){ .listing-grid { grid-template-columns: 1fr; } }
+      @media(max-width: 600px){ .mg { grid-template-columns: repeat(2,1fr)!important; } }
     `),
 
     // ── NAVBAR
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:scrolled?"#1A1A2E":"linear-gradient(135deg,#1A0A2E,#2D1B6B)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.25)":"none",transition:"all .3s"}},
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",gap:10,height:66}},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10,marginRight:16,flexShrink:0,cursor:"pointer"}},
+        React.createElement("div",{onClick:goHome, style:{display:"flex",alignItems:"center",gap:10,marginRight:16,flexShrink:0,cursor:"pointer"}},
           React.createElement("div",{style:{width:38,height:38,background:"linear-gradient(135deg,#E63946,#F4A261)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}},"🌵"),
-          React.createElement("div",null,
+          React.createElement("div",{style:{display:window.innerWidth<600?"none":"block"}},
             React.createElement("div",{style:{color:"white",fontWeight:800,fontSize:16,lineHeight:1.1}},"Compra en Jujuy"),
-            React.createElement("div",{style:{color:"rgba(255,255,255,.5)",fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase"}},"Clasificados gratuitos")
+            React.createElement("div",{style:{color:"rgba(255,255,255,.5)",fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase"}},"Clasificados")
           )
         ),
         React.createElement("div",{style:{flex:1,maxWidth:480,background:"rgba(255,255,255,.1)",borderRadius:12,display:"flex",alignItems:"center",padding:"0 14px",height:42,border:"1px solid rgba(255,255,255,.15)"}},
           React.createElement("span",{style:{marginRight:8,fontSize:16,opacity:.7}},"🔍"),
-          React.createElement("input", {
-  style: {flex:1, border:"none", outline:"none", fontSize:15, fontFamily:"inherit", background:"transparent", color:"white"},
-  placeholder: "Buscar en todos los clasificados...",
-  value: search,
-  onChange: function(e) {
-    const val = e.target.value;
-    setSearch(val);
-    
-    // Cambiamos la URL a /busqueda?q=... sin ensuciar el historial
-    if (val) {
-      window.history.replaceState({}, '', '/busqueda?q=' + encodeURIComponent(val));
-    } else {
-      window.history.replaceState({}, '', '/');
-    }
-  }
-})
+          React.createElement("input",{
+            style:{flex:1,border:"none",outline:"none",fontSize:15,fontFamily:"inherit",background:"transparent",color:"white"},
+            placeholder:"Buscar clasificados...",
+            value:search,
+            onChange:function(e){
+              const val = e.target.value;
+              setSearch(val);
+              if (val.trim() !== "") {
+                window.history.replaceState({}, '', '/busqueda?q=' + encodeURIComponent(val));
+                setCurrentView("search");
+              } else {
+                window.history.pushState({}, '', '/');
+                setCurrentView("home");
+              }
+            }
+          })
         ),
         React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
           user
             ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
-                React.createElement("button",{className:"nl",onClick:openProfile,style:{display:"flex",alignItems:"center",gap:6}},
+                React.createElement("button",{className:"nl",onClick:openProfile,style:{display:"flex",alignItems:"center",gap:6,background:currentView==="profile"?"rgba(255,255,255,.18)":"transparent"}},
                   React.createElement("span",null,"👤"),
                   React.createElement("span",null,user.email.split("@")[0])
                 ),
@@ -361,11 +404,11 @@ function App() {
                 React.createElement("button",{className:"nl",onClick:function(){setAuthMode("register");setAuthModal(true);}},"Registrarse")
               ),
           React.createElement("button",{className:"nl",style:{display:"flex",alignItems:"center",gap:5},onClick:function(){setMegaOpen(!megaOpen);}},"Categorías ",React.createElement("span",{style:{fontSize:10,display:"inline-block",transform:megaOpen?"rotate(180deg)":"none",transition:"transform .2s"}},"▼")),
-          React.createElement("button",{className:"pb",onClick:function(){setPublishModal(true);}},"✏️ Publicar GRATIS")
+          React.createElement("button",{className:"pb",onClick:function(){setPublishModal(true);}},"✏️ Publicar")
         )
       ),
       megaOpen && React.createElement("div",{style:{position:"absolute",top:"calc(100% + 8px)",left:0,right:0,background:"white",borderRadius:"0 0 20px 20px",boxShadow:"0 20px 60px rgba(0,0,0,.15)",zIndex:200,padding:28}},
-        React.createElement("div",{className:"mg",style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20}},
+        React.createElement("div",{className:"mg",style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,maxWidth:1200,margin:"0 auto"}},
           categories.map(function(cat){
             return React.createElement("div",{key:cat.id,onClick:function(){selectCat(cat.id);setMegaOpen(false);}},
               React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer"}},
@@ -382,187 +425,232 @@ function App() {
       )
     ),
 
-    // ── HERO
-    React.createElement("div",{style:{background:"linear-gradient(135deg,#1A0A2E 0%,#3D1A6B 40%,#6B2D1A 70%,#1A0A2E 100%)",padding:"52px 20px 60px",position:"relative",overflow:"hidden"}},
-      React.createElement("div",{style:{position:"absolute",bottom:0,left:0,right:0,height:8,background:"linear-gradient(90deg,#E63946,#F4A261,#F7D060,#8BC34A,#2EC4B6,#4A90D9,#9B5DE5)",opacity:.9}}),
-      React.createElement("div",{style:{position:"absolute",bottom:8,left:0,right:0,height:4,background:"linear-gradient(90deg,#F4A261,#E63946,#F7D060,#2EC4B6,#8BC34A,#9B5DE5,#4A90D9)",opacity:.5}}),
-      React.createElement("div",{style:{position:"absolute",bottom:24,left:20,fontSize:64,opacity:.12}},"🌵"),
-      React.createElement("div",{style:{position:"absolute",bottom:24,right:20,fontSize:72,opacity:.12}},"🌵"),
-      React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",textAlign:"center"}},
-        React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(244,162,97,.2)",border:"1px solid rgba(244,162,97,.4)",borderRadius:20,padding:"6px 16px",marginBottom:18}},
-          React.createElement("span",{style:{color:"#F4A261",fontSize:12,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}},"🟢 Clasificados gratuitos de Jujuy")
+    // =======================================================================
+    // ── VISTA 1: INICIO (HOME) ─────────────────────────────────────────────
+    // =======================================================================
+    currentView === "home" && React.createElement(React.Fragment, null,
+      // HERO
+      React.createElement("div",{style:{background:"linear-gradient(135deg,#1A0A2E 0%,#3D1A6B 40%,#6B2D1A 70%,#1A0A2E 100%)",padding:"52px 20px 60px",position:"relative",overflow:"hidden"}},
+        React.createElement("div",{style:{position:"absolute",bottom:0,left:0,right:0,height:8,background:"linear-gradient(90deg,#E63946,#F4A261,#F7D060,#8BC34A,#2EC4B6,#4A90D9,#9B5DE5)",opacity:.9}}),
+        React.createElement("div",{style:{position:"absolute",bottom:8,left:0,right:0,height:4,background:"linear-gradient(90deg,#F4A261,#E63946,#F7D060,#2EC4B6,#8BC34A,#9B5DE5,#4A90D9)",opacity:.5}}),
+        React.createElement("div",{style:{position:"absolute",bottom:24,left:20,fontSize:64,opacity:.12}},"🌵"),
+        React.createElement("div",{style:{position:"absolute",bottom:24,right:20,fontSize:72,opacity:.12}},"🌵"),
+        React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",textAlign:"center"}},
+          React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(244,162,97,.2)",border:"1px solid rgba(244,162,97,.4)",borderRadius:20,padding:"6px 16px",marginBottom:18}},
+            React.createElement("span",{style:{color:"#F4A261",fontSize:12,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}},"🟢 Clasificados gratuitos de Jujuy")
+          ),
+          React.createElement("h1",{style:{color:"white",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1.15,letterSpacing:"-1px",marginBottom:14}},
+            "Compra y vendé en",React.createElement("br"),
+            React.createElement("span",{style:{background:"linear-gradient(90deg,#E63946,#F4A261,#F7D060,#8BC34A,#2EC4B6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}},"Jujuy 🌵")
+          ),
+          React.createElement("p",{style:{color:"rgba(255,255,255,.65)",fontSize:"clamp(13px,2vw,16px)",maxWidth:500,margin:"0 auto 32px"}},"Clasificados gratuitos para toda la provincia. Publicá en segundos, llegá a miles."),
+          React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}},
+            React.createElement("button",{className:"pb",style:{padding:"14px 32px",fontSize:15,borderRadius:14,background:"linear-gradient(135deg,#E63946,#F4A261)",boxShadow:"0 8px 24px rgba(230,57,70,.4)"},onClick:function(){setPublishModal(true);}},"✏️ Publicar GRATIS")
+          )
+        )
+      ),
+      // CONTENIDO HOME
+      React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
+        React.createElement(AdBanner,{slot:ads.banner_top}),
+        
+        // Categorías
+        React.createElement("div",{style:{marginBottom:36}},
+          React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
+            categories.map(function(cat){
+              return React.createElement("div",{key:cat.id,className:"cp",
+                style:{borderColor:activeCat===cat.id?cat.color:"transparent",background:activeCat===cat.id?(cat.color+"18"):"white"},
+                onClick:function(){selectCat(cat.id);}},
+                React.createElement("div",{style:{fontSize:28,lineHeight:1}},cat.icon),
+                React.createElement("div",{style:{fontSize:11,fontWeight:700,color:"#1A1A2E",textAlign:"center",lineHeight:1.3}},cat.label),
+                React.createElement("div",{style:{fontSize:10,color:"#9CA3AF"}},fmtCount(counts[cat.id]))
+              );
+            })
+          ),
+          // Panel categoría activa
+          activeCat && React.createElement("div",{style:{marginTop:16,background:"white",borderRadius:16,border:"1px solid #F0EDE8",overflow:"hidden"}},
+            React.createElement("div",{style:{padding:"16px 20px",borderBottom:"1px solid #F0EDE8",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
+              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+                React.createElement("span",{style:{fontSize:24}},(activeCatData||{}).icon||""),
+                React.createElement("div",null,
+                  React.createElement("div",{style:{fontWeight:800,fontSize:16,color:"#1A1A2E"}},(activeCatData||{}).label||""),
+                  React.createElement("div",{style:{fontSize:12,color:"#9CA3AF"}},fmtCount(counts[activeCat])+" anuncios")
+                )
+              ),
+              React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+                ((activeCatData||{}).subs||[]).map(function(s){
+                  return React.createElement("span",{key:s,style:{background:"#F3F4F6",color:"#374151",padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}},s);
+                })
+              )
+            ),
+            catLoading ? React.createElement("div",{className:"es"},"⏳ Cargando...") : 
+            catListings.length===0 ? React.createElement("div",{className:"es"},"📭 No hay anuncios") :
+            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:0}},
+              catListings.map(function(l,idx){
+                const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
+                return React.createElement("div",{key:l.id, style:{display:"flex",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:"1px solid #F0EDE8",cursor:"pointer"}, onClick:function(){openListing(l);}},
+                  React.createElement("div",{style:{width:52,height:52,borderRadius:10,overflow:"hidden",background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}},
+                    img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(activeCatData||{}).icon||"📦"
+                  ),
+                  React.createElement("div",{style:{flex:1,minWidth:0}},
+                    React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#1A1A2E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},(l.title||"")),
+                    React.createElement("div",{style:{fontSize:14,fontWeight:900,color:"#FF6B35"}},(l.price_label||"Consultar"))
+                  )
+                );
+              })
+            )
+          )
         ),
-        React.createElement("div",{style:{marginBottom:16}},
-          React.createElement("div",{style:{display:"inline-flex",alignItems:"flex-end",gap:3,height:48}},
-            ["#E63946","#F4A261","#F7D060","#8BC34A","#2EC4B6","#4A90D9","#9B5DE5"].map(function(c,i){
-              return React.createElement("div",{key:i,style:{width:18,height:(28+Math.sin((i/6)*Math.PI)*20)+"px",background:c,borderRadius:"4px 4px 0 0",opacity:.85}});
+
+        // Más Vistos
+        top.length>0 && React.createElement("div",{style:{marginBottom:36}},
+          React.createElement(SecTitle,{title:"🔥 Más vistos",sub:"Ordenados por tráfico real"}),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
+            top.map(function(l){return React.createElement(ListingCard,{key:l.id,listing:l,onOpen:openListing});})
+          )
+        ),
+
+        React.createElement(AdBanner,{slot:ads.banner_mid}),
+
+        // Últimos Publicados
+        React.createElement("div",{style:{marginBottom:36}},
+          React.createElement(SecTitle,{title:"🕐 Últimos Publicados",sub:"Actualizados en tiempo real"}),
+          React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}},
+            React.createElement("button",{className:"tb "+(activeTab==="Todos"?"ta":"ti"),onClick:function(){setActiveTab("Todos");}},"Todos"),
+            categories.map(function(c){return React.createElement("button",{key:c.id,className:"tb "+(activeTab===c.id?"ta":"ti"),onClick:function(){setActiveTab(c.id);}},c.label);})
+          ),
+          loading ? React.createElement("div",{className:"es"},"⏳ Cargando...") :
+          filtered.length===0 ? React.createElement("div",{className:"es"},"📭 No hay anuncios") :
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:12}},
+            filtered.map(function(l){
+              const cat=getCat(l.category_id);
+              const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
+              return React.createElement("div",{key:l.id,className:"rc",onClick:function(){openListing(l);}},
+                React.createElement("div",{style:{width:60,height:60,background:"#FFF7ED",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0,overflow:"hidden"}},
+                  img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(cat?cat.icon:"📦")
+                ),
+                React.createElement("div",{style:{flex:1,minWidth:0}},
+                  React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#1A1A2E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},l.title),
+                  React.createElement("div",{style:{fontSize:15,fontWeight:900,color:"#FF6B35"}},l.price_label||"Consultar"),
+                  React.createElement("div",{style:{display:"flex",gap:8,marginTop:4}},
+                    React.createElement("span",{style:{fontSize:10,color:"#9CA3AF",background:"#F3F4F6",padding:"2px 7px",borderRadius:5,fontWeight:600}},(cat?cat.label:l.category_id)),
+                    React.createElement("span",{style:{fontSize:10,color:"#9CA3AF"}},"🕐 "+timeAgo(l.created_at))
+                  )
+                )
+              );
             })
           )
         ),
-        React.createElement("h1",{style:{color:"white",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1.15,letterSpacing:"-1px",marginBottom:14}},
-          "Compra y vendé en",React.createElement("br"),
-          React.createElement("span",{style:{background:"linear-gradient(90deg,#E63946,#F4A261,#F7D060,#8BC34A,#2EC4B6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}},"Jujuy 🌵")
+        React.createElement(AdBanner,{slot:ads.banner_bottom})
+      )
+    ),
+
+    // =======================================================================
+    // ── VISTA 2: PUBLICACIÓN A PÁGINA COMPLETA ─────────────────────────────
+    // =======================================================================
+    currentView === "listing" && currentListing && React.createElement("div", {className:"page-container"},
+      React.createElement("div", {style:{marginBottom:20, fontSize:13, fontWeight:600}},
+        React.createElement("a", {href:"#", onClick:goHome, style:{color:"#6B7280", textDecoration:"none"}}, "Inicio"),
+        React.createElement("span", {style:{color:"#D1D5DB", margin:"0 8px"}}, "/"),
+        React.createElement("span", {style:{color:"#FF6B35"}}, (getCat(currentListing.category_id)||{}).label||currentListing.category_id)
+      ),
+      React.createElement("div", {className: "listing-grid"},
+        // Izquierda: Fotos
+        React.createElement("div", null, 
+          currentListing.listing_images && currentListing.listing_images.length > 0 ?
+            React.createElement("div", {style:{borderRadius:20, overflow:"hidden", background:"white", border:"1px solid #F0EDE8", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center"}},
+              React.createElement("img", {src:currentListing.listing_images[0].url, style:{width:"100%", height:"100%", objectFit:"contain"}})
+            ) : 
+            React.createElement("div", {style:{borderRadius:20, background:"#F3F4F6", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center", fontSize:64}},
+              (getCat(currentListing.category_id)||{}).icon||"📦"
+            )
         ),
-        React.createElement("p",{style:{color:"rgba(255,255,255,.65)",fontSize:"clamp(13px,2vw,16px)",maxWidth:500,margin:"0 auto 32px"}},"Clasificados gratuitos para toda la provincia. Publicá en segundos, llegá a miles."),
-        React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}},
-          React.createElement("button",{className:"pb",style:{padding:"14px 32px",fontSize:15,borderRadius:14,background:"linear-gradient(135deg,#E63946,#F4A261)",boxShadow:"0 8px 24px rgba(230,57,70,.4)"},onClick:function(){setPublishModal(true);}},"✏️ Publicar GRATIS"),
-          React.createElement("button",{style:{background:"rgba(255,255,255,.12)",color:"white",border:"1px solid rgba(255,255,255,.25)",padding:"14px 28px",borderRadius:14,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},"🔍 Explorar todo")
-        ),
-        React.createElement("div",{style:{display:"flex",justifyContent:"center",gap:"clamp(20px,5vw,60px)",flexWrap:"wrap",marginTop:40}},
-          [{num:total===null?"...":total.toLocaleString("es-AR"),label:"Anuncios activos"},{num:"Gratis",label:"Publicación"},{num:"100%",label:"Jujuy"}].map(function(s){
-            return React.createElement("div",{key:s.label,style:{textAlign:"center"}},
-              React.createElement("div",{style:{fontSize:28,fontWeight:800,color:"white"}},s.num),
-              React.createElement("div",{style:{fontSize:11,color:"rgba(255,255,255,.75)",fontWeight:500,marginTop:2}},s.label)
-            );
-          })
+        // Derecha: Info
+        React.createElement("div", null, 
+          React.createElement("div", {style:{background:"white", padding:32, borderRadius:20, border:"1px solid #F0EDE8", boxShadow:"0 4px 20px rgba(0,0,0,.04)"}},
+            React.createElement("h1", {style:{fontSize:26, fontWeight:800, color:"#1A1A2E", marginBottom:12, lineHeight:1.3}}, currentListing.title),
+            React.createElement("div", {style:{fontSize:36, fontWeight:900, color:"#FF6B35", marginBottom:24}}, currentListing.price_label||"Consultar"),
+            
+            React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:12, marginBottom:32, paddingBottom:24, borderBottom:"1px solid #F3F4F6"}},
+              currentListing.location && React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"#4B5563", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"📍"), "Ubicación: " + currentListing.location),
+              React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"#4B5563", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"🕐"), "Publicado hace " + timeAgo(currentListing.created_at)),
+              React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"#4B5563", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"👁️"), currentListing.views + " personas vieron esto")
+            ),
+            
+            currentListing.description && React.createElement("div", {style:{marginBottom:32}},
+              React.createElement("h3", {style:{fontSize:16, fontWeight:800, marginBottom:12}}, "Descripción"),
+              React.createElement("p", {style:{fontSize:15, color:"#4B5563", lineHeight:1.7, whiteSpace:"pre-wrap"}}, currentListing.description)
+            ),
+
+            currentListing.contact_phone && React.createElement("a", {
+              href:"https://wa.me/549"+currentListing.contact_phone.replace(/\D/g,"")+"?text=Hola, vi tu anuncio '"+encodeURIComponent(currentListing.title)+"' en Compra en Jujuy",
+              target:"_blank", rel:"noopener noreferrer",
+              style:{display:"flex", alignItems:"center", justifyContent:"center", gap:10, background:"#25D366", color:"white", padding:"16px", borderRadius:14, fontWeight:800, fontSize:16, textDecoration:"none", transition:"transform .2s", boxShadow:"0 8px 20px rgba(37,211,102,.3)"}
+            }, "💬 Contactar al vendedor")
+          )
         )
       )
     ),
 
-    // ── CONTENIDO
-    React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px"}},
-      React.createElement(AdBanner,{slot:ads.banner_top}),
-
-      // CATEGORÍAS
-      React.createElement("div",{style:{marginBottom:36}},
-        React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
-          categories.map(function(cat){
-            return React.createElement("div",{key:cat.id,className:"cp",
-              style:{borderColor:activeCat===cat.id?cat.color:"transparent",background:activeCat===cat.id?(cat.color+"18"):"white"},
-              onClick:function(){selectCat(cat.id);}},
-              React.createElement("div",{style:{fontSize:28,lineHeight:1}},cat.icon),
-              React.createElement("div",{style:{fontSize:11,fontWeight:700,color:"#1A1A2E",textAlign:"center",lineHeight:1.3}},cat.label),
-              React.createElement("div",{style:{fontSize:10,color:"#9CA3AF"}},fmtCount(counts[cat.id]))
-            );
-          })
-        ),
-
-        // Panel de categoría seleccionada
-        activeCat && React.createElement("div",{style:{marginTop:16,background:"white",borderRadius:16,border:"1px solid #F0EDE8",overflow:"hidden"}},
-          // Header de la categoría
-          React.createElement("div",{style:{padding:"16px 20px",borderBottom:"1px solid #F0EDE8",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
-            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-              React.createElement("span",{style:{fontSize:24}},(activeCatData||{}).icon||""),
-              React.createElement("div",null,
-                React.createElement("div",{style:{fontWeight:800,fontSize:16,color:"#1A1A2E"}},(activeCatData||{}).label||""),
-                React.createElement("div",{style:{fontSize:12,color:"#9CA3AF"}},fmtCount(counts[activeCat])+" anuncios")
+    // =======================================================================
+    // ── VISTA 3: PERFIL DE USUARIO ─────────────────────────────────────────
+    // =======================================================================
+    currentView === "profile" && React.createElement("div", {className:"page-container", style:{maxWidth:800}},
+      React.createElement("div", {style:{background:"white", borderRadius:20, padding:32, border:"1px solid #F0EDE8", marginBottom:24, display:"flex", alignItems:"center", gap:20}},
+        React.createElement("div", {style:{width:72, height:72, borderRadius:20, background:"linear-gradient(135deg,#E63946,#F4A261)", color:"white", fontSize:32, display:"flex", alignItems:"center", justifyContent:"center"}}, "👤"),
+        React.createElement("div", null,
+          React.createElement("h1", {style:{fontSize:24, fontWeight:800, color:"#1A1A2E"}}, "Mi Perfil"),
+          React.createElement("div", {style:{fontSize:15, color:"#6B7280", marginTop:4}}, user && user.email)
+        )
+      ),
+      React.createElement("div", {style:{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20}},
+        React.createElement("h2", {style:{fontSize:20, fontWeight:800}}, "Mis Publicaciones"),
+        React.createElement("button", {className:"pb", onClick:function(){setPublishModal(true);}}, "✏️ Nuevo Anuncio")
+      ),
+      myLoading ? React.createElement("div", {className:"es"}, "⏳ Cargando...") :
+      myListings.length===0 ? React.createElement("div", {className:"es"}, "📭 No tienes publicaciones") :
+      React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:12}},
+        myListings.map(function(l){
+          const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
+          const cat=getCat(l.category_id);
+          return React.createElement("div", {key:l.id, style:{display:"flex", gap:16, alignItems:"center", background:"white", borderRadius:16, padding:16, border:"1px solid #F0EDE8", boxShadow:"0 2px 8px rgba(0,0,0,.03)"}},
+            React.createElement("div", {style:{width:70, height:70, borderRadius:12, overflow:"hidden", background:"#FFF7ED", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0}},
+              img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(cat?cat.icon:"📦")
+            ),
+            React.createElement("div", {style:{flex:1, minWidth:0}},
+              React.createElement("div", {style:{fontSize:15, fontWeight:800, color:"#1A1A2E", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginBottom:4}}, l.title),
+              React.createElement("div", {style:{fontSize:16, fontWeight:900, color:"#FF6B35", marginBottom:6}}, l.price_label||"Consultar"),
+              React.createElement("div", {style:{display:"flex", gap:10, alignItems:"center"}},
+                React.createElement("span", {style:{fontSize:11, padding:"3px 8px", borderRadius:6, fontWeight:700, background:l.status==="active"?"#DCFCE7":"#F3F4F6", color:l.status==="active"?"#166534":"#6B7280"}}, l.status==="active"?"✅ Activo":"⏸ Pausado"),
+                React.createElement("span", {style:{fontSize:12, color:"#9CA3AF", fontWeight:600}}, "👁️ "+l.views+" visitas")
               )
             ),
-            React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
-              ((activeCatData||{}).subs||[]).map(function(s){
-                return React.createElement("span",{key:s,style:{background:"#F3F4F6",color:"#374151",padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"},
-                  onMouseEnter:function(e){e.target.style.background="#FF6B35";e.target.style.color="white";},
-                  onMouseLeave:function(e){e.target.style.background="#F3F4F6";e.target.style.color="#374151";}},s);
-              })
+            React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:8, flexShrink:0}},
+              React.createElement("button",{onClick:function(){pauseListing(l.id,l.status);}, style:{background:"#F3F4F6",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}, l.status==="active"?"⏸ Pausar":"▶️ Activar"),
+              React.createElement("button",{onClick:function(){deleteListing(l.id);}, style:{background:"#FEE2E2",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",color:"#DC2626",fontFamily:"inherit"}}, "🗑️ Eliminar")
             )
-          ),
-          // Listings de la categoría
-          catLoading
-            ? React.createElement("div",{style:{padding:40,textAlign:"center",color:"#9CA3AF"}},React.createElement("div",{style:{fontSize:32,marginBottom:8}},"⏳"),React.createElement("div",null,"Cargando..."))
-            : catListings.length===0
-              ? React.createElement("div",{style:{padding:40,textAlign:"center",color:"#9CA3AF"}},
-                  React.createElement("div",{style:{fontSize:32,marginBottom:8}},"📭"),
-                  React.createElement("div",{style:{fontWeight:600,marginBottom:12}},"No hay anuncios en esta categoría todavía"),
-                  React.createElement("button",{className:"pb",onClick:function(){setPublishModal(true);}},"✏️ Publicar el primero")
-                )
-              : React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:0}},
-                  catListings.map(function(l,idx){
-                    const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
-                    return React.createElement("div",{key:l.id,
-                      style:{display:"flex",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:idx<catListings.length-1?"1px solid #F0EDE8":"none",cursor:"pointer",transition:"background .15s"},
-                      onClick:function(){openListing(l);},
-                      onMouseEnter:function(e){e.currentTarget.style.background="#FAFAF9";},
-                      onMouseLeave:function(e){e.currentTarget.style.background="transparent";}},
-                      React.createElement("div",{style:{width:52,height:52,borderRadius:10,overflow:"hidden",background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}},
-                        img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(activeCatData||{}).icon||"📦"
-                      ),
-                      React.createElement("div",{style:{flex:1,minWidth:0}},
-                        React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#1A1A2E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},(l.title||"")),
-                        React.createElement("div",{style:{fontSize:14,fontWeight:900,color:"#FF6B35"}},(l.price_label||"Consultar")),
-                        React.createElement("div",{style:{fontSize:11,color:"#9CA3AF",marginTop:2}},"🕐 "+(timeAgo(l.created_at))+(l.location?" · 📍 "+l.location:""))
-                      ),
-                      React.createElement("div",{style:{fontSize:18,color:"#D1D5DB",flexShrink:0}},"›")
-                    );
-                  })
-                )
+          );
+        })
+      )
+    ),
+
+    // =======================================================================
+    // ── VISTA 4: RESULTADOS DE BÚSQUEDA ────────────────────────────────────
+    // =======================================================================
+    currentView === "search" && React.createElement("div", {className:"page-container"},
+      React.createElement("div", {style:{marginBottom:32}},
+        React.createElement("h1", {style:{fontSize:28, fontWeight:800, color:"#1A1A2E"}}, 'Resultados para "', React.createElement("span", {style:{color:"#FF6B35"}}, search), '"'),
+        React.createElement("div", {style:{fontSize:14, color:"#6B7280", marginTop:8}}, searchResults.length + " clasificados encontrados")
+      ),
+      searchResults.length === 0 ? 
+        React.createElement("div", {className:"es", style:{background:"white", borderRadius:20, padding:60}}, "📭 No encontramos nada que coincida con tu búsqueda. Intenta con otras palabras.") :
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
+          searchResults.map(function(l){return React.createElement(ListingCard,{key:l.id,listing:l,onOpen:openListing});})
         )
-      ),
-
-      // MÁS VISTOS
-      top.length>0 && React.createElement("div",{style:{marginBottom:36}},
-        React.createElement(SecTitle,{title:"🔥 Más vistos",sub:"Ordenados por tráfico real",link:"Ver todos →"}),
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
-          top.map(function(l){return React.createElement(ListingCard,{key:l.id,listing:l,onOpen:openListing});})
-        )
-      ),
-
-      React.createElement(AdBanner,{slot:ads.banner_mid}),
-
-      // ÚLTIMOS PUBLICADOS
-      React.createElement("div",{style:{marginBottom:36}},
-        React.createElement(SecTitle,{title:"🕐 Últimos Publicados",sub:"Actualizados en tiempo real",link:"Ver más →"}),
-        React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}},
-          React.createElement("button",{className:"tb "+(activeTab==="Todos"?"ta":"ti"),onClick:function(){setActiveTab("Todos");}},"Todos"),
-          categories.map(function(c){return React.createElement("button",{key:c.id,className:"tb "+(activeTab===c.id?"ta":"ti"),onClick:function(){setActiveTab(c.id);}},c.label);})
-        ),
-        loading
-          ? React.createElement("div",{className:"es"},React.createElement("div",{style:{fontSize:40,marginBottom:12}},"⏳"),React.createElement("div",{style:{fontWeight:600}},"Cargando..."))
-          : filtered.length===0
-            ? React.createElement("div",{className:"es"},
-                React.createElement("div",{style:{fontSize:40,marginBottom:12}},"📭"),
-                React.createElement("div",{style:{fontWeight:600,marginBottom:8}},search?("Sin resultados para \""+search+"\""):"Todavía no hay anuncios publicados"),
-                React.createElement("button",{className:"pb",style:{marginTop:16},onClick:function(){setPublishModal(true);}},"✏️ Sé el primero en publicar")
-              )
-            : React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:12}},
-                filtered.map(function(l){
-                  const cat=getCat(l.category_id);
-                  const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
-                  return React.createElement("div",{key:l.id,className:"rc",onClick:function(){openListing(l);}},
-                    React.createElement("div",{style:{width:60,height:60,background:"linear-gradient(135deg,#FFF7ED,#FFEDD5)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0,overflow:"hidden"}},
-                      img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(cat?cat.icon:"📦")
-                    ),
-                    React.createElement("div",{style:{flex:1,minWidth:0}},
-                      React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},l.title),
-                      React.createElement("div",{style:{fontSize:15,fontWeight:900,color:"#FF6B35"}},l.price_label||"Consultar"),
-                      React.createElement("div",{style:{display:"flex",gap:8,marginTop:4}},
-                        React.createElement("span",{style:{fontSize:10,color:"#9CA3AF",background:"#F3F4F6",padding:"2px 7px",borderRadius:5,fontWeight:600}},(cat?cat.label:l.category_id)+(l.subcategory?" › "+l.subcategory:"")),
-                        React.createElement("span",{style:{fontSize:10,color:"#9CA3AF"}},"🕐 "+timeAgo(l.created_at))
-                      )
-                    ),
-                    React.createElement("div",{style:{fontSize:18,color:"#D1D5DB"}},"›")
-                  );
-                })
-              )
-      ),
-
-      // CONSEJOS DE SEGURIDAD
-      React.createElement("div",{style:{marginBottom:36}},
-        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}},
-          React.createElement("div",null,
-            React.createElement("div",{style:{fontSize:22,fontWeight:800,color:"#1A1A2E"}},"🛡️ Consejos de Seguridad"),
-            React.createElement("div",{style:{fontSize:13,color:"#9CA3AF",marginTop:2}},"Leé esto antes de comprar o vender")
-          ),
-          React.createElement("button",{onClick:function(){setSecModal(true);},style:{background:"#1A1A2E",color:"white",border:"none",padding:"10px 18px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}},"Ver todo →")
-        ),
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}},
-          securityTips.map(function(tip,i){
-            return React.createElement("div",{key:i,style:{background:tip.bg,border:"1px solid "+tip.border,borderRadius:16,padding:"18px 20px"}},
-              React.createElement("div",{style:{fontWeight:700,fontSize:13,color:tip.color,marginBottom:12}},tip.titulo),
-              React.createElement("ul",{style:{paddingLeft:16,margin:0}},
-                tip.items.slice(0,2).map(function(item,j){return React.createElement("li",{key:j,style:{fontSize:12,color:tip.color,marginBottom:6,lineHeight:1.5}},item);}),
-                tip.items.length>2&&React.createElement("li",{style:{fontSize:12,color:tip.color,opacity:.6}},"y "+(tip.items.length-2)+" más...")
-              )
-            );
-          })
-        )
-      ),
-
-      React.createElement(AdBanner,{slot:ads.banner_bottom})
     ),
 
     // ── FOOTER
-    React.createElement("footer",{style:{background:"#1A0A2E",color:"rgba(255,255,255,.65)",padding:"40px 20px 24px"}},
+    React.createElement("footer",{style:{background:"#1A0A2E",color:"rgba(255,255,255,.65)",padding:"40px 20px 24px", marginTop:"auto"}},
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto"}},
         React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:40,marginBottom:32}},
           React.createElement("div",{style:{flex:"1 1 220px"}},
@@ -575,123 +663,31 @@ function App() {
               ["#E63946","#F4A261","#F7D060","#8BC34A","#2EC4B6","#4A90D9","#9B5DE5"].map(function(c,i){return React.createElement("div",{key:i,style:{width:18,height:18,background:c,borderRadius:4,opacity:.8}});})
             )
           ),
-          [{title:"Publicar",links:["Publicar GRATIS","Cómo funciona"]},{title:"Cuenta",links:["Registrarse","Iniciar sesión","Mis anuncios"]},{title:"Ayuda",links:["Consejos de Seguridad","Preguntas frecuentes","Contacto"]}].map(function(col){
+          [{title:"Publicar",links:["Publicar GRATIS"]},{title:"Cuenta",links:["Mi Perfil"]},{title:"Ayuda",links:["Consejos de Seguridad"]}].map(function(col){
             return React.createElement("div",{key:col.title,style:{flex:"1 1 140px"}},
               React.createElement("div",{style:{color:"white",fontWeight:700,fontSize:13,marginBottom:14,textTransform:"uppercase",letterSpacing:".8px"}},col.title),
               col.links.map(function(l){
                 return React.createElement("a",{key:l,href:"#",style:{display:"block",color:"rgba(255,255,255,.5)",textDecoration:"none",fontSize:12,marginBottom:8},
                   onMouseEnter:function(e){e.target.style.color="#F4A261";},
                   onMouseLeave:function(e){e.target.style.color="rgba(255,255,255,.5)";},
-                  onClick:l==="Consejos de Seguridad"?function(e){e.preventDefault();setSecModal(true);}:l==="Mis anuncios"?function(e){e.preventDefault();openProfile();}:undefined},l);
+                  onClick:l==="Consejos de Seguridad"?function(e){e.preventDefault();setSecModal(true);}:l==="Mi Perfil"?function(e){e.preventDefault();openProfile();}:function(e){e.preventDefault();setPublishModal(true);}},l);
               })
             );
           })
         ),
         React.createElement("div",{style:{borderTop:"1px solid rgba(255,255,255,.1)",paddingTop:20,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}},
-          React.createElement("div",{style:{fontSize:12}},"© 2024–2026 Compra en Jujuy. Todos los derechos reservados."),
-          React.createElement("div",{style:{display:"flex",gap:16}},
-            ["📘 Facebook","📸 Instagram","💬 WhatsApp"].map(function(s){
-              return React.createElement("a",{key:s,href:"#",style:{color:"rgba(255,255,255,.5)",textDecoration:"none",fontSize:12},onMouseEnter:function(e){e.target.style.color="white";},onMouseLeave:function(e){e.target.style.color="rgba(255,255,255,.5)";}},s);
-            })
-          )
+          React.createElement("div",{style:{fontSize:12}},"© 2024–2026 Compra en Jujuy. Todos los derechos reservados.")
         )
       )
     ),
 
-    // ── BOTÓN FLOTANTE
-    React.createElement("button",{onClick:function(){setPublishModal(true);},
-      style:{position:"fixed",bottom:28,right:28,background:"linear-gradient(135deg,#E63946,#F4A261)",color:"white",border:"none",width:60,height:60,borderRadius:"50%",fontSize:24,cursor:"pointer",boxShadow:"0 8px 24px rgba(230,57,70,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .2s",fontFamily:"inherit"},
-      onMouseEnter:function(e){e.currentTarget.style.transform="scale(1.1)";},onMouseLeave:function(e){e.currentTarget.style.transform="scale(1)";}
+    // BOTÓN FLOTANTE (Solo en Home y Search)
+    (currentView === "home" || currentView === "search") && React.createElement("button",{onClick:function(){setPublishModal(true);},
+      style:{position:"fixed",bottom:28,right:28,background:"linear-gradient(135deg,#E63946,#F4A261)",color:"white",border:"none",width:60,height:60,borderRadius:"50%",fontSize:24,cursor:"pointer",boxShadow:"0 8px 24px rgba(230,57,70,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}
     },"✏️"),
 
-// ── MODAL: ANUNCIO INDIVIDUAL
-    listingModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setListingModal(null); window.history.pushState({}, '', '/');}}},
-      React.createElement("div",{className:"md",style:{maxWidth:600}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}},
-          React.createElement("div",null,
-            React.createElement("span",{style:{fontSize:11,fontWeight:700,color:"#FF6B35",textTransform:"uppercase",letterSpacing:"1px"}},
-              (getCat(listingModal.category_id)||{}).label||listingModal.category_id,
-              listingModal.subcategory?" › "+listingModal.subcategory:""
-            )
-          ),
-          React.createElement("button",{onClick:function(){setListingModal(null); window.history.pushState({}, '', '/');},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
-        ),
-        // Imágenes
-        listingModal.listing_images&&listingModal.listing_images.length>0&&
-          React.createElement("div",{style:{borderRadius:12,overflow:"hidden",marginBottom:20,height:220,background:"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center"}},
-            React.createElement("img",{src:listingModal.listing_images[0].url,style:{width:"100%",height:"100%",objectFit:"cover"}})
-          ),
-        React.createElement("h2",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E",marginBottom:8}},listingModal.title),
-        React.createElement("div",{style:{fontSize:28,fontWeight:900,color:"#FF6B35",marginBottom:16}},listingModal.price_label||"Consultar"),
-        listingModal.description&&React.createElement("p",{style:{fontSize:14,color:"#4B5563",lineHeight:1.7,marginBottom:16}},listingModal.description),
-        React.createElement("div",{style:{display:"flex",gap:16,flexWrap:"wrap",marginBottom:20}},
-          listingModal.location&&React.createElement("span",{style:{fontSize:13,color:"#6B7280"}},"📍 "+listingModal.location),
-          React.createElement("span",{style:{fontSize:13,color:"#6B7280"}},"🕐 "+timeAgo(listingModal.created_at)),
-          React.createElement("span",{style:{fontSize:13,color:"#6B7280"}},"👁️ "+listingModal.views+" visitas")
-        ),
-        listingModal.contact_phone&&React.createElement("a",{
-          href:"https://wa.me/549"+listingModal.contact_phone.replace(/\D/g,""),
-          target:"_blank",rel:"noopener noreferrer",
-          style:{display:"block",background:"#25D366",color:"white",textAlign:"center",padding:"14px",borderRadius:12,fontWeight:700,fontSize:15,textDecoration:"none"}
-        },"💬 Contactar por WhatsApp")
-      )
-    ),
-
-// ── MODAL: PERFIL / MIS PUBLICACIONES
-    profileModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setProfileModal(false); window.history.pushState({}, '', '/');}}},
-      React.createElement("div",{className:"md",style:{maxWidth:640}},
-        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
-          React.createElement("div",null,
-            React.createElement("div",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E"}},"👤 Mi perfil"),
-            React.createElement("div",{style:{fontSize:12,color:"#9CA3AF",marginTop:3}},user&&user.email)
-          ),
-          React.createElement("button",{onClick:function(){setProfileModal(false); window.history.pushState({}, '', '/');},style:{background:"#F3F4F6",border:"none",width:36,height:36,borderRadius:10,cursor:"pointer",fontSize:18,fontFamily:"inherit"}},"×")
-        ),
-        React.createElement("div",{style:{fontSize:16,fontWeight:700,color:"#1A1A2E",marginBottom:12}},"Mis publicaciones"),
-        myLoading
-          ? React.createElement("div",{style:{textAlign:"center",padding:40,color:"#9CA3AF"}},"⏳ Cargando...")
-          : myListings.length===0
-            ? React.createElement("div",{style:{textAlign:"center",padding:40,color:"#9CA3AF"}},
-                React.createElement("div",{style:{fontSize:40,marginBottom:12}},"📭"),
-                React.createElement("div",{style:{fontWeight:600,marginBottom:16}},"Todavía no publicaste nada"),
-                React.createElement("button",{className:"pb",onClick:function(){setProfileModal(false);setPublishModal(true);}},"✏️ Publicar ahora")
-              )
-            : React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
-                myListings.map(function(l){
-                  const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
-                  const cat=getCat(l.category_id);
-                  return React.createElement("div",{key:l.id,style:{display:"flex",gap:12,alignItems:"center",background:"#F9F8F6",borderRadius:12,padding:12,border:"1px solid #F0EDE8"}},
-                    React.createElement("div",{style:{width:52,height:52,borderRadius:10,overflow:"hidden",background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}},
-                      img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(cat?cat.icon:"📦")
-                    ),
-                    React.createElement("div",{style:{flex:1,minWidth:0}},
-                      React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"#1A1A2E",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},l.title),
-                      React.createElement("div",{style:{fontSize:14,fontWeight:900,color:"#FF6B35"}},l.price_label||"Consultar"),
-                      React.createElement("div",{style:{display:"flex",gap:8,marginTop:4,alignItems:"center"}},
-                        React.createElement("span",{style:{fontSize:10,padding:"2px 7px",borderRadius:5,fontWeight:700,background:l.status==="active"?"#DCFCE7":"#F3F4F6",color:l.status==="active"?"#166534":"#6B7280"}},
-                          l.status==="active"?"✅ Activo":"⏸ Pausado"
-                        ),
-                        React.createElement("span",{style:{fontSize:10,color:"#9CA3AF"}},"👁️ "+l.views+" visitas"),
-                        React.createElement("span",{style:{fontSize:10,color:"#9CA3AF"}},"🕐 "+timeAgo(l.created_at))
-                      )
-                    ),
-                    React.createElement("div",{style:{display:"flex",gap:6,flexShrink:0}},
-                      React.createElement("button",{onClick:function(){pauseListing(l.id,l.status);},
-                        style:{background:"#F3F4F6",border:"none",padding:"6px 10px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}},
-                        l.status==="active"?"⏸":"▶️"
-                      ),
-                      React.createElement("button",{onClick:function(){deleteListing(l.id);},
-                        style:{background:"#FEE2E2",border:"none",padding:"6px 10px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",color:"#DC2626",fontFamily:"inherit"}},
-                        "🗑️"
-                      )
-                    )
-                  );
-                })
-              )
-      )
-    ),
-    
-    // ── MODAL: AUTH
+    // ── MODALES DEL SISTEMA (LOGIN, PUBLICAR, SEGURIDAD) ──
+    // Modal Auth
     authModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setAuthModal(false);setAuthMsg("");}}},
       React.createElement("div",{className:"md",style:{maxWidth:440}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -714,10 +710,9 @@ function App() {
         ["Email","Contraseña",authMode==="register"?"Confirmar contraseña":null].filter(Boolean).map(function(label){
           const key=label==="Email"?"email":label==="Contraseña"?"password":"confirm";
           const type=key==="email"?"email":"password";
-          const ph=key==="email"?"tucorreo@gmail.com":"Mínimo 6 caracteres";
           return React.createElement("div",{key:label,style:{marginBottom:18}},
             React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},label),
-            React.createElement("input",{className:"fi",type:type,placeholder:ph,value:authForm[key],onChange:function(e){setAuthForm(Object.assign({},authForm,{[key]:e.target.value}));}})
+            React.createElement("input",{className:"fi",type:type,value:authForm[key],onChange:function(e){setAuthForm(Object.assign({},authForm,{[key]:e.target.value}));}})
           );
         }),
         authMsg&&React.createElement("div",{style:{fontSize:13,fontWeight:600,marginBottom:16,textAlign:"center",padding:"10px",background:authMsg.startsWith("✅")?"#F0FDF4":"#FFF1F2",borderRadius:8}},authMsg),
@@ -727,7 +722,7 @@ function App() {
       )
     ),
 
-    // ── MODAL: PUBLICAR
+    // Modal Publicar
     publishModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setPublishModal(false);}},
       React.createElement("div",{className:"md"},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -744,7 +739,6 @@ function App() {
             React.createElement("button",{style:{background:"white",color:"#FF6B35",border:"2px solid #FF6B35",padding:"8px 16px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:function(){setPublishModal(false);setAuthMode("register");setAuthModal(true);}},"Registrarse gratis")
           )
         ),
-        // Categoría
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"Categoría *"),
           React.createElement("select",{className:"fi",value:form.cat,onChange:function(e){setForm(Object.assign({},form,{cat:e.target.value,sub:""}))}},
@@ -759,12 +753,10 @@ function App() {
             catSubs.map(function(s){return React.createElement("option",{key:s,value:s},s);})
           )
         ),
-        // Título
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"Título *"),
-          React.createElement("input",{className:"fi",placeholder:"Ej: iPhone 15 Pro 256GB – Como nuevo",value:form.title,onChange:function(e){setForm(Object.assign({},form,{title:e.target.value}));}})
+          React.createElement("input",{className:"fi",placeholder:"Ej: iPhone 15 Pro",value:form.title,onChange:function(e){setForm(Object.assign({},form,{title:e.target.value}));}})
         ),
-        // Precio
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:8}},"Precio"),
           React.createElement("div",{className:"pt"},
@@ -777,53 +769,46 @@ function App() {
               React.createElement("option",{value:"ARS"},"$ ARS"),
               React.createElement("option",{value:"USD"},"U$S")
             )
-          ),
-          form.ptype==="consultar"&&React.createElement("div",{style:{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#166534",fontWeight:600}},"💬 El precio aparecerá como \"Consultar\".")
+          )
         ),
-        // Descripción
         React.createElement("div",{style:{marginBottom:18}},
           React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"Descripción"),
-          React.createElement("textarea",{className:"fi",rows:3,placeholder:"Describí tu artículo o servicio...",style:{resize:"vertical"},value:form.desc,onChange:function(e){setForm(Object.assign({},form,{desc:e.target.value}));}})
+          React.createElement("textarea",{className:"fi",rows:3,placeholder:"Describí tu artículo...",style:{resize:"vertical"},value:form.desc,onChange:function(e){setForm(Object.assign({},form,{desc:e.target.value}));}})
         ),
-        // Ubicación + WhatsApp
         React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}},
           React.createElement("div",null,
             React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"Ubicación"),
-            React.createElement("input",{className:"fi",placeholder:"San Salvador de Jujuy",value:form.loc,onChange:function(e){setForm(Object.assign({},form,{loc:e.target.value}));}})
+            React.createElement("input",{className:"fi",placeholder:"Ciudad",value:form.loc,onChange:function(e){setForm(Object.assign({},form,{loc:e.target.value}));}})
           ),
           React.createElement("div",null,
-            React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"WhatsApp"),
-            React.createElement("input",{className:"fi",placeholder:"3884123456",inputMode:"numeric",value:form.phone,onChange:function(e){setForm(Object.assign({},form,{phone:e.target.value.replace(/\D/g,"")}));}})
+            React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"WhatsApp *"),
+            React.createElement("input",{className:"fi",placeholder:"388...",inputMode:"numeric",value:form.phone,onChange:function(e){setForm(Object.assign({},form,{phone:e.target.value.replace(/\D/g,"")}));}})
           )
         ),
-        // Fotos
         React.createElement("div",{style:{marginBottom:24}},
           React.createElement("div",{style:{fontSize:13,fontWeight:600,color:"#6B7280",marginBottom:6}},"Fotos ("+form.files.length+"/8)"),
-          React.createElement("label",{style:{display:"block",border:"2px dashed #E5E7EB",borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"},
-            onMouseEnter:function(e){e.currentTarget.style.borderColor="#FF6B35";},onMouseLeave:function(e){e.currentTarget.style.borderColor="#E5E7EB";}},
+          React.createElement("label",{style:{display:"block",border:"2px dashed #E5E7EB",borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}},
             React.createElement("div",{style:{fontSize:24,marginBottom:4}},"📷"),
-            React.createElement("div",{style:{fontSize:13,color:"#6B7280",fontWeight:600}},"Tocá para agregar fotos"),
-            React.createElement("div",{style:{fontSize:11,color:"#9CA3AF",marginTop:2}},"JPG, PNG · Máx. 8 · Se comprimen automáticamente"),
+            React.createElement("div",{style:{fontSize:13,color:"#6B7280",fontWeight:600}},"Agregar fotos"),
             React.createElement("input",{type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:handleFiles})
           ),
           form.previews.length>0&&React.createElement("div",{className:"ipg"},
             form.previews.map(function(src,idx){
               return React.createElement("div",{key:idx,className:"ipi"},
-                React.createElement("img",{src:src,alt:"foto "+(idx+1)}),
-                React.createElement("button",{className:"irb",onClick:function(){removeImg(idx);}},  "×"),
-                idx===0&&React.createElement("div",{style:{position:"absolute",bottom:3,left:3,background:"rgba(0,0,0,.6)",color:"white",fontSize:9,fontWeight:700,padding:"2px 5px",borderRadius:4}},"PRINCIPAL")
+                React.createElement("img",{src:src,alt:"foto"}),
+                React.createElement("button",{className:"irb",onClick:function(){removeImg(idx);}},  "×")
               );
             })
           )
         ),
         pubMsg&&React.createElement("div",{style:{fontSize:13,fontWeight:600,marginBottom:16,textAlign:"center",padding:"10px",background:pubMsg.startsWith("✅")?"#F0FDF4":"#FFF1F2",borderRadius:8}},pubMsg),
-        React.createElement("button",{className:"pb",style:{width:"100%",padding:16,fontSize:15,borderRadius:12,background:"linear-gradient(135deg,#E63946,#F4A261)",opacity:pubBusy?0.7:1},onClick:handlePublish,disabled:pubBusy},
-          pubBusy?"⏳ Publicando...":"🚀 Publicar anuncio GRATIS"
+        React.createElement("button",{className:"pb",style:{width:"100%",padding:16,fontSize:15,borderRadius:12,opacity:pubBusy?0.7:1},onClick:handlePublish,disabled:pubBusy},
+          pubBusy?"⏳ Publicando...":"🚀 Publicar anuncio"
         )
       )
     ),
 
-    // ── MODAL: CONSEJOS
+    // Modal Seguridad
     secModal&&React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setSecModal(false);}},
       React.createElement("div",{className:"md",style:{maxWidth:640}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -852,14 +837,14 @@ function App() {
 function ListingCard(props){
   const l=props.listing, cat=getCat(l.category_id), img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
   return React.createElement("div",{className:"card",onClick:function(){if(props.onOpen)props.onOpen(l);}},
-    React.createElement("div",{style:{height:160,background:"linear-gradient(135deg,#FFF7ED,#FFEDD5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:56,position:"relative",overflow:"hidden"}},
+    React.createElement("div",{style:{height:160,background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:56,position:"relative",overflow:"hidden"}},
       img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):React.createElement("span",null,cat?cat.icon:"📦"),
       React.createElement("span",{style:{position:"absolute",top:10,left:10,background:"#FF6B35",color:"white",fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6}},"🔥 "+(l.views||0)+" visitas"),
       cat&&React.createElement("span",{style:{position:"absolute",top:10,right:10,background:"rgba(0,0,0,.55)",color:"white",fontSize:10,fontWeight:600,padding:"4px 8px",borderRadius:6}},cat.label)
     ),
-    React.createElement("div",{style:{padding:"14px 16px"}},
+    React.createElement("div",{style:{padding:"14px 16px", flex:1, display:"flex", flexDirection:"column"}},
       React.createElement("div",{style:{fontSize:14,fontWeight:700,color:"#1A1A2E",marginBottom:6,lineHeight:1.35}},l.title),
-      React.createElement("div",{style:{fontSize:18,fontWeight:900,color:"#FF6B35",marginBottom:10}},l.price_label||"Consultar"),
+      React.createElement("div",{style:{fontSize:18,fontWeight:900,color:"#FF6B35",marginBottom:10, marginTop:"auto"}},l.price_label||"Consultar"),
       React.createElement("div",{style:{display:"flex",justifyContent:"space-between"}},
         React.createElement("span",{style:{fontSize:11,color:"#9CA3AF"}},"📍 "+(l.location||"Jujuy")),
         React.createElement("span",{style:{fontSize:11,color:"#9CA3AF"}},"🕐 "+timeAgo(l.created_at))
