@@ -54,7 +54,8 @@ function App() {
   const [authModal,     setAuthModal]     = useState(false);
   const [authMode,      setAuthMode]      = useState("login");
   const [secModal,      setSecModal]      = useState(false);
-  
+  const [deleteTarget,  setDeleteTarget]  = useState(null);
+
   const [myListings,    setMyListings]    = useState([]);
   const [myLoading,     setMyLoading]     = useState(false);
 
@@ -209,8 +210,19 @@ function App() {
     setMyListings(function(p){return p.map(function(l){return l.id===id?Object.assign({},l,{status:ns}):l;});});
   }
 
-  async function deleteListing(id){
-    if(!confirm("¿Eliminar este anuncio permanentemente?")) return;
+  // ── Acciones de Perfil ──────────────────────────────────
+  async function pauseListing(id,current){
+    const ns=current==="active"?"paused":"active";
+    await db.from("listings").update({status:ns}).eq("id",id);
+    setMyListings(function(p){return p.map(function(l){return l.id===id?Object.assign({},l,{status:ns}):l;});});
+  }
+
+  // NUEVA LÓGICA DE ELIMINACIÓN
+  async function confirmDelete(){
+    if(!deleteTarget) return;
+    const id = deleteTarget;
+    setDeleteTarget(null); // Cerramos el modal inmediatamente
+    
     await db.from("listings").delete().eq("id",id);
     setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
     await loadData();
@@ -627,12 +639,14 @@ function App() {
             ),
             React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:8, flexShrink:0}},
               React.createElement("button",{onClick:function(){pauseListing(l.id,l.status);}, style:{background:"#F3F4F6",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}, l.status==="active"?"⏸ Pausar":"▶️ Activar"),
-              React.createElement("button",{onClick:function(){deleteListing(l.id);}, style:{background:"#FEE2E2",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",color:"#DC2626",fontFamily:"inherit"}}, "🗑️ Eliminar")
+              // AQUÍ ESTÁ EL CAMBIO: Llama a setDeleteTarget(l.id)
+              React.createElement("button",{onClick:function(){setDeleteTarget(l.id);}, style:{background:"#FEE2E2",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",color:"#DC2626",fontFamily:"inherit"}}, "🗑️ Eliminar")
             )
           );
         })
       )
     ),
+
 
     // =======================================================================
     // ── VISTA 4: RESULTADOS DE BÚSQUEDA ────────────────────────────────────
@@ -832,6 +846,25 @@ function App() {
     )
   );
 }
+
+// Modal Confirmar Eliminación
+    deleteTarget && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setDeleteTarget(null);}},
+      React.createElement("div",{className:"md",style:{maxWidth:400,textAlign:"center",padding:"40px 32px"}},
+        React.createElement("div",{style:{fontSize:48,marginBottom:16}},"🗑️"),
+        React.createElement("h3",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E",marginBottom:12}},"¿Eliminar anuncio?"),
+        React.createElement("p",{style:{fontSize:14,color:"#6B7280",marginBottom:24,lineHeight:1.6}},"Esta acción no se puede deshacer. Tu clasificado será borrado permanentemente de la plataforma."),
+        React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center"}},
+          React.createElement("button",{onClick:function(){setDeleteTarget(null);},
+            style:{flex:1,background:"#F3F4F6",color:"#4B5563",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"background .2s"}},
+            "Cancelar"
+          ),
+          React.createElement("button",{onClick:confirmDelete,
+            style:{flex:1,background:"#EF4444",color:"white",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 16px rgba(239,68,68,.25)",transition:"transform .2s"}},
+            "Sí, eliminar"
+          )
+        )
+      )
+    )
 
 // ── Componentes auxiliares ────────────────────────────────────
 function ListingCard(props){
