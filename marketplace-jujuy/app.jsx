@@ -186,10 +186,23 @@ function App() {
     setMyLoading(false);
   }
 
+  // ── Seleccionar categoría → cargar sus listings ──────────
   async function selectCat(id){
     if(activeCat===id){ setActiveCat(null); setCatListings([]); return; }
     setActiveCat(id); setCatListings([]); setCatLoading(true);
+    
     if(currentView !== "home"){ goHome(); }
+    
+    // NUEVO: Scroll automático hacia los resultados
+    setTimeout(function() {
+      const el = document.getElementById("seccion-categorias");
+      if (el) {
+        // Calcula la posición y le resta 80px para que el menú superior no tape el título
+        const y = el.getBoundingClientRect().top + window.scrollY - 80; 
+        window.scrollTo({top: y, behavior: 'smooth'});
+      }
+    }, 50);
+
     try{
       const r=await db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",id).order("created_at",{ascending:false}).limit(20);
       setCatListings(r.data||[]);
@@ -440,9 +453,9 @@ function App() {
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
         React.createElement(AdBanner,{slot:ads.banner_top}),
         
-        React.createElement("div",{style:{marginBottom:36}},
-          React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),
-          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
+// CATEGORÍAS
+      React.createElement("div",{id:"seccion-categorias", style:{marginBottom:36}},
+        React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
             categories.map(function(cat){
               return React.createElement("div",{key:cat.id,className:"cp",
                 style:{borderColor:activeCat===cat.id?cat.color:"transparent",background:activeCat===cat.id?(cat.color+"18"):"white"},
