@@ -39,6 +39,7 @@ function getCat(id) { return categories.find(function(c){return c.id===id;}); }
 function App() {
   const [currentView,   setCurrentView]   = useState("home"); 
   const [currentListing,setCurrentListing]= useState(null); 
+  const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [search,        setSearch]        = useState("");
   const [activeCat,     setActiveCat]     = useState(null);
   const [catListings,   setCatListings]   = useState([]);
@@ -86,6 +87,7 @@ function App() {
           if (r.data) {
             setCurrentListing(r.data);
             setCurrentView("listing");
+            setActiveImageIdx(0);
             db.from("listings").update({views:(r.data.views||0)+1}).eq("id",id).then();
             window.scrollTo(0,0);
           }
@@ -165,9 +167,10 @@ function App() {
     window.scrollTo(0,0);
   }
 
-  async function openListing(l, isDirectLoad = false){
+async function openListing(l, isDirectLoad = false){
     setCurrentListing(l);
     setCurrentView("listing");
+    setActiveImageIdx(0); // <-- NUEVO: Reinicia a la foto 1
     if (!isDirectLoad) { window.history.pushState({}, '', `/publicacion/${l.id}`); }
     window.scrollTo(0,0);
     try{ await db.from("listings").update({views:(l.views||0)+1}).eq("id",l.id); }catch(e){}
@@ -541,22 +544,51 @@ function App() {
       )
     ),
 
+// =======================================================================
+    // ── VISTA 2: PUBLICACIÓN A PÁGINA COMPLETA ─────────────────────────────
+    // =======================================================================
     currentView === "listing" && currentListing && React.createElement("div", {className:"page-container"},
+      // Migas de pan (Breadcrumbs)
       React.createElement("div", {style:{marginBottom:20, fontSize:13, fontWeight:600}},
         React.createElement("a", {href:"#", onClick:goHome, style:{color:"#6B7280", textDecoration:"none"}}, "Inicio"),
         React.createElement("span", {style:{color:"#D1D5DB", margin:"0 8px"}}, "/"),
-        React.createElement("span", {style:{color:"#FF6B35"}}, (getCat(currentListing.category_id)||{}).label||currentListing.category_id)
+        React.createElement("span", {style:{color:"#FF6B35"}}, (getCat(currentListing.category_id)||{}).label||currentListing.category_id),
+        // ✅ CORRECCIÓN 1: Mostrar la subcategoría si existe
+        currentListing.subcategory && React.createElement(React.Fragment, null,
+          React.createElement("span", {style:{color:"#D1D5DB", margin:"0 8px"}}, "/"),
+          React.createElement("span", {style:{color:"#FF6B35"}}, currentListing.subcategory)
+        )
       ),
       React.createElement("div", {className: "listing-grid"},
+        // Izquierda: Fotos (GALERÍA)
         React.createElement("div", null, 
           currentListing.listing_images && currentListing.listing_images.length > 0 ?
-            React.createElement("div", {style:{borderRadius:20, overflow:"hidden", background:"white", border:"1px solid #F0EDE8", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center"}},
-              React.createElement("img", {src:currentListing.listing_images[0].url, style:{width:"100%", height:"100%", objectFit:"contain"}})
+            React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:12}},
+              // Imagen Principal
+              React.createElement("div", {style:{borderRadius:20, overflow:"hidden", background:"white", border:"1px solid #F0EDE8", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center"}},
+                React.createElement("img", {src:currentListing.listing_images[activeImageIdx || 0].url, style:{width:"100%", height:"100%", objectFit:"contain"}})
+              ),
+              // ✅ CORRECCIÓN 2: Miniaturas (solo aparecen si hay más de 1 imagen)
+              currentListing.listing_images.length > 1 && React.createElement("div", {style:{display:"flex", gap:10, overflowX:"auto", paddingBottom:8}},
+                currentListing.listing_images.map(function(img, idx){
+                  return React.createElement("div", {
+                    key: idx,
+                    onClick: function(){setActiveImageIdx(idx);},
+                    style: {
+                      width:80, height:80, borderRadius:12, overflow:"hidden", cursor:"pointer", flexShrink:0,
+                      border: activeImageIdx === idx ? "3px solid #FF6B35" : "1px solid #F0EDE8",
+                      opacity: activeImageIdx === idx ? 1 : 0.6,
+                      transition: "all .2s"
+                    }
+                  }, React.createElement("img", {src:img.url, style:{width:"100%", height:"100%", objectFit:"cover"}}));
+                })
+              )
             ) : 
             React.createElement("div", {style:{borderRadius:20, background:"#F3F4F6", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center", fontSize:64}},
               (getCat(currentListing.category_id)||{}).icon||"📦"
             )
         ),
+        // Derecha: Info
         React.createElement("div", null, 
           React.createElement("div", {style:{background:"white", padding:32, borderRadius:20, border:"1px solid #F0EDE8", boxShadow:"0 4px 20px rgba(0,0,0,.04)"}},
             React.createElement("h1", {style:{fontSize:26, fontWeight:800, color:"#1A1A2E", marginBottom:12, lineHeight:1.3}}, currentListing.title),
@@ -582,6 +614,7 @@ function App() {
         )
       )
     ),
+
 
     currentView === "profile" && React.createElement("div", {className:"page-container", style:{maxWidth:800}},
       React.createElement("div", {style:{background:"white", borderRadius:20, padding:32, border:"1px solid #F0EDE8", marginBottom:24, display:"flex", alignItems:"center", gap:20}},
