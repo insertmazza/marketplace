@@ -37,10 +37,8 @@ function getCat(id) { return categories.find(function(c){return c.id===id;}); }
 
 // ─── App ─────────────────────────────────────────────────────
 function App() {
-  // ── ESTADOS DEL ENRUTADOR (NUEVO) ───────────────────────
-  const [currentView,   setCurrentView]   = useState("home"); // "home", "listing", "profile", "search"
+  const [currentView,   setCurrentView]   = useState("home"); 
   const [currentListing,setCurrentListing]= useState(null); 
-
   const [search,        setSearch]        = useState("");
   const [activeCat,     setActiveCat]     = useState(null);
   const [catListings,   setCatListings]   = useState([]);
@@ -49,13 +47,12 @@ function App() {
   const [scrolled,      setScrolled]      = useState(false);
   const [activeTab,     setActiveTab]     = useState("Todos");
   
-  // Modales que sí se mantienen (Login, Seguridad y Publicar)
   const [publishModal,  setPublishModal]  = useState(false);
   const [authModal,     setAuthModal]     = useState(false);
   const [authMode,      setAuthMode]      = useState("login");
   const [secModal,      setSecModal]      = useState(false);
-  const [deleteTarget,  setDeleteTarget]  = useState(null);
-
+  const [deleteTarget,  setDeleteTarget]  = useState(null); // ✅ ESTADO CORREGIDO
+  
   const [myListings,    setMyListings]    = useState([]);
   const [myLoading,     setMyLoading]     = useState(false);
 
@@ -75,7 +72,6 @@ function App() {
   const [pubBusy, setPubBusy] = useState(false);
   const [pubMsg,  setPubMsg]  = useState("");
 
-  // ── Init & Enrutador ────────────────────────────────────
   useEffect(function(){
     window.addEventListener("scroll",function(){ setScrolled(window.scrollY>60); });
 
@@ -161,7 +157,6 @@ function App() {
     setLoading(false);
   }
 
-  // ── Navegación (Funciones) ──────────────────────────────
   function goHome(e) {
     if(e) e.preventDefault();
     setSearch("");
@@ -194,7 +189,6 @@ function App() {
   async function selectCat(id){
     if(activeCat===id){ setActiveCat(null); setCatListings([]); return; }
     setActiveCat(id); setCatListings([]); setCatLoading(true);
-    // Si elige una categoría desde otra página, lo devolvemos al inicio para verla
     if(currentView !== "home"){ goHome(); }
     try{
       const r=await db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",id).order("created_at",{ascending:false}).limit(20);
@@ -203,32 +197,23 @@ function App() {
     setCatLoading(false);
   }
 
-  // ── Acciones de Perfil ──────────────────────────────────
   async function pauseListing(id,current){
     const ns=current==="active"?"paused":"active";
     await db.from("listings").update({status:ns}).eq("id",id);
     setMyListings(function(p){return p.map(function(l){return l.id===id?Object.assign({},l,{status:ns}):l;});});
   }
 
-  // ── Acciones de Perfil ──────────────────────────────────
-  async function pauseListing(id,current){
-    const ns=current==="active"?"paused":"active";
-    await db.from("listings").update({status:ns}).eq("id",id);
-    setMyListings(function(p){return p.map(function(l){return l.id===id?Object.assign({},l,{status:ns}):l;});});
-  }
-
-  // NUEVA LÓGICA DE ELIMINACIÓN
+  // ✅ NUEVA LÓGICA DE ELIMINACIÓN
   async function confirmDelete(){
     if(!deleteTarget) return;
     const id = deleteTarget;
-    setDeleteTarget(null); // Cerramos el modal inmediatamente
+    setDeleteTarget(null);
     
     await db.from("listings").delete().eq("id",id);
     setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
     await loadData();
   }
 
-  // ── Fotos ────────────────────────────────────────────────
   function handleFiles(e){
     const nf=Array.from(e.target.files);
     const combined=form.files.concat(nf).slice(0,8);
@@ -239,7 +224,6 @@ function App() {
     setForm(Object.assign({},form,{files:f,previews:f.map(function(x){return URL.createObjectURL(x);})}));
   }
 
-  // ── Auth ─────────────────────────────────────────────────
   async function handleAuth(e){
     e.preventDefault(); setAuthMsg(""); setAuthBusy(true);
     if(!authForm.email||!authForm.password){setAuthMsg("❌ Completá todos los campos");setAuthBusy(false);return;}
@@ -261,12 +245,12 @@ function App() {
     }
     setAuthBusy(false);
   }
+  
   async function handleLogout(){ 
     await db.auth.signOut(); 
-    if(currentView === "profile") goHome(); // Si cierra sesión en perfil, va a inicio
+    if(currentView === "profile") goHome();
   }
 
-  // ── Publicar ─────────────────────────────────────────────
   async function handlePublish(e){
     e.preventDefault();
     if(!user){setPublishModal(false);setAuthModal(true);setAuthMode("login");return;}
@@ -309,7 +293,6 @@ function App() {
       setForm({title:"",desc:"",price:"",ptype:"valor",cur:"ARS",cat:"",sub:"",loc:"",phone:"",files:[],previews:[]});
       await loadData();
       
-      // Tras publicar, lo llevamos a su anuncio a página completa
       setTimeout(async function(){
         setPublishModal(false); setPubMsg("");
         const r = await db.from("listings").select("*,listing_images(url)").eq("id", ins.data.id).single();
@@ -330,7 +313,6 @@ function App() {
   const catSubs=(getCat(form.cat)||{}).subs||[];
   const activeCatData=getCat(activeCat);
 
-  // ── RENDER ───────────────────────────────────────────────
   return React.createElement("div",{style:{fontFamily:"'Sora','Nunito',sans-serif",background:"#F8F7F4",minHeight:"100vh",color:"#1A1A2E",display:"flex",flexDirection:"column"}},
     React.createElement("style",null,`
       @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
@@ -366,14 +348,12 @@ function App() {
       .irb:hover{background:rgba(220,38,38,.85)}
       .tag{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:700}
       
-      /* Utilidades de Grid para pantallas completas */
       .page-container { flex: 1; max-width: 1200px; margin: 0 auto; padding: 40px 20px; width: 100%; }
       .listing-grid { display: grid; grid-template-columns: 1fr 400px; gap: 40px; }
       @media(max-width: 900px){ .listing-grid { grid-template-columns: 1fr; } }
       @media(max-width: 600px){ .mg { grid-template-columns: repeat(2,1fr)!important; } }
     `),
 
-    // ── NAVBAR
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:scrolled?"#1A1A2E":"linear-gradient(135deg,#1A0A2E,#2D1B6B)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.25)":"none",transition:"all .3s"}},
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",gap:10,height:66}},
         React.createElement("div",{onClick:goHome, style:{display:"flex",alignItems:"center",gap:10,marginRight:16,flexShrink:0,cursor:"pointer"}},
@@ -437,11 +417,7 @@ function App() {
       )
     ),
 
-    // =======================================================================
-    // ── VISTA 1: INICIO (HOME) ─────────────────────────────────────────────
-    // =======================================================================
     currentView === "home" && React.createElement(React.Fragment, null,
-      // HERO
       React.createElement("div",{style:{background:"linear-gradient(135deg,#1A0A2E 0%,#3D1A6B 40%,#6B2D1A 70%,#1A0A2E 100%)",padding:"52px 20px 60px",position:"relative",overflow:"hidden"}},
         React.createElement("div",{style:{position:"absolute",bottom:0,left:0,right:0,height:8,background:"linear-gradient(90deg,#E63946,#F4A261,#F7D060,#8BC34A,#2EC4B6,#4A90D9,#9B5DE5)",opacity:.9}}),
         React.createElement("div",{style:{position:"absolute",bottom:8,left:0,right:0,height:4,background:"linear-gradient(90deg,#F4A261,#E63946,#F7D060,#2EC4B6,#8BC34A,#9B5DE5,#4A90D9)",opacity:.5}}),
@@ -461,11 +437,9 @@ function App() {
           )
         )
       ),
-      // CONTENIDO HOME
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
         React.createElement(AdBanner,{slot:ads.banner_top}),
         
-        // Categorías
         React.createElement("div",{style:{marginBottom:36}},
           React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
@@ -479,7 +453,6 @@ function App() {
               );
             })
           ),
-          // Panel categoría activa
           activeCat && React.createElement("div",{style:{marginTop:16,background:"white",borderRadius:16,border:"1px solid #F0EDE8",overflow:"hidden"}},
             React.createElement("div",{style:{padding:"16px 20px",borderBottom:"1px solid #F0EDE8",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
               React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
@@ -498,7 +471,7 @@ function App() {
             catLoading ? React.createElement("div",{className:"es"},"⏳ Cargando...") : 
             catListings.length===0 ? React.createElement("div",{className:"es"},"📭 No hay anuncios") :
             React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:0}},
-              catListings.map(function(l,idx){
+              catListings.map(function(l){
                 const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
                 return React.createElement("div",{key:l.id, style:{display:"flex",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:"1px solid #F0EDE8",cursor:"pointer"}, onClick:function(){openListing(l);}},
                   React.createElement("div",{style:{width:52,height:52,borderRadius:10,overflow:"hidden",background:"#FFF7ED",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}},
@@ -514,7 +487,6 @@ function App() {
           )
         ),
 
-        // Más Vistos
         top.length>0 && React.createElement("div",{style:{marginBottom:36}},
           React.createElement(SecTitle,{title:"🔥 Más vistos",sub:"Ordenados por tráfico real"}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
@@ -524,7 +496,6 @@ function App() {
 
         React.createElement(AdBanner,{slot:ads.banner_mid}),
 
-        // Últimos Publicados
         React.createElement("div",{style:{marginBottom:36}},
           React.createElement(SecTitle,{title:"🕐 Últimos Publicados",sub:"Actualizados en tiempo real"}),
           React.createElement("div",{style:{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}},
@@ -557,9 +528,6 @@ function App() {
       )
     ),
 
-    // =======================================================================
-    // ── VISTA 2: PUBLICACIÓN A PÁGINA COMPLETA ─────────────────────────────
-    // =======================================================================
     currentView === "listing" && currentListing && React.createElement("div", {className:"page-container"},
       React.createElement("div", {style:{marginBottom:20, fontSize:13, fontWeight:600}},
         React.createElement("a", {href:"#", onClick:goHome, style:{color:"#6B7280", textDecoration:"none"}}, "Inicio"),
@@ -567,7 +535,6 @@ function App() {
         React.createElement("span", {style:{color:"#FF6B35"}}, (getCat(currentListing.category_id)||{}).label||currentListing.category_id)
       ),
       React.createElement("div", {className: "listing-grid"},
-        // Izquierda: Fotos
         React.createElement("div", null, 
           currentListing.listing_images && currentListing.listing_images.length > 0 ?
             React.createElement("div", {style:{borderRadius:20, overflow:"hidden", background:"white", border:"1px solid #F0EDE8", aspectRatio:"4/3", display:"flex", alignItems:"center", justifyContent:"center"}},
@@ -577,7 +544,6 @@ function App() {
               (getCat(currentListing.category_id)||{}).icon||"📦"
             )
         ),
-        // Derecha: Info
         React.createElement("div", null, 
           React.createElement("div", {style:{background:"white", padding:32, borderRadius:20, border:"1px solid #F0EDE8", boxShadow:"0 4px 20px rgba(0,0,0,.04)"}},
             React.createElement("h1", {style:{fontSize:26, fontWeight:800, color:"#1A1A2E", marginBottom:12, lineHeight:1.3}}, currentListing.title),
@@ -604,9 +570,6 @@ function App() {
       )
     ),
 
-    // =======================================================================
-    // ── VISTA 3: PERFIL DE USUARIO ─────────────────────────────────────────
-    // =======================================================================
     currentView === "profile" && React.createElement("div", {className:"page-container", style:{maxWidth:800}},
       React.createElement("div", {style:{background:"white", borderRadius:20, padding:32, border:"1px solid #F0EDE8", marginBottom:24, display:"flex", alignItems:"center", gap:20}},
         React.createElement("div", {style:{width:72, height:72, borderRadius:20, background:"linear-gradient(135deg,#E63946,#F4A261)", color:"white", fontSize:32, display:"flex", alignItems:"center", justifyContent:"center"}}, "👤"),
@@ -639,7 +602,7 @@ function App() {
             ),
             React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:8, flexShrink:0}},
               React.createElement("button",{onClick:function(){pauseListing(l.id,l.status);}, style:{background:"#F3F4F6",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}, l.status==="active"?"⏸ Pausar":"▶️ Activar"),
-              // AQUÍ ESTÁ EL CAMBIO: Llama a setDeleteTarget(l.id)
+              // Llama al modal de eliminar
               React.createElement("button",{onClick:function(){setDeleteTarget(l.id);}, style:{background:"#FEE2E2",border:"none",padding:"8px 12px",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer",color:"#DC2626",fontFamily:"inherit"}}, "🗑️ Eliminar")
             )
           );
@@ -647,10 +610,6 @@ function App() {
       )
     ),
 
-
-    // =======================================================================
-    // ── VISTA 4: RESULTADOS DE BÚSQUEDA ────────────────────────────────────
-    // =======================================================================
     currentView === "search" && React.createElement("div", {className:"page-container"},
       React.createElement("div", {style:{marginBottom:32}},
         React.createElement("h1", {style:{fontSize:28, fontWeight:800, color:"#1A1A2E"}}, 'Resultados para "', React.createElement("span", {style:{color:"#FF6B35"}}, search), '"'),
@@ -695,13 +654,31 @@ function App() {
       )
     ),
 
-    // BOTÓN FLOTANTE (Solo en Home y Search)
     (currentView === "home" || currentView === "search") && React.createElement("button",{onClick:function(){setPublishModal(true);},
       style:{position:"fixed",bottom:28,right:28,background:"linear-gradient(135deg,#E63946,#F4A261)",color:"white",border:"none",width:60,height:60,borderRadius:"50%",fontSize:24,cursor:"pointer",boxShadow:"0 8px 24px rgba(230,57,70,.5)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}
     },"✏️"),
 
-    // ── MODALES DEL SISTEMA (LOGIN, PUBLICAR, SEGURIDAD) ──
-    // Modal Auth
+    // ── MODALES ───────────────────────────────────────────────────────────
+    
+    // Modal Confirmar Eliminación ✅
+    deleteTarget && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setDeleteTarget(null);}},
+      React.createElement("div",{className:"md",style:{maxWidth:400,textAlign:"center",padding:"40px 32px"}},
+        React.createElement("div",{style:{fontSize:48,marginBottom:16}},"🗑️"),
+        React.createElement("h3",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E",marginBottom:12}},"¿Eliminar anuncio?"),
+        React.createElement("p",{style:{fontSize:14,color:"#6B7280",marginBottom:24,lineHeight:1.6}},"Esta acción no se puede deshacer. Tu clasificado será borrado permanentemente de la plataforma."),
+        React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center"}},
+          React.createElement("button",{onClick:function(){setDeleteTarget(null);},
+            style:{flex:1,background:"#F3F4F6",color:"#4B5563",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"background .2s"}},
+            "Cancelar"
+          ),
+          React.createElement("button",{onClick:confirmDelete,
+            style:{flex:1,background:"#EF4444",color:"white",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 16px rgba(239,68,68,.25)",transition:"transform .2s"}},
+            "Sí, eliminar"
+          )
+        )
+      )
+    ),
+
     authModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget){setAuthModal(false);setAuthMsg("");}}},
       React.createElement("div",{className:"md",style:{maxWidth:440}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -736,7 +713,6 @@ function App() {
       )
     ),
 
-    // Modal Publicar
     publishModal && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setPublishModal(false);}},
       React.createElement("div",{className:"md"},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -822,7 +798,6 @@ function App() {
       )
     ),
 
-    // Modal Seguridad
     secModal&&React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setSecModal(false);}},
       React.createElement("div",{className:"md",style:{maxWidth:640}},
         React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}},
@@ -847,26 +822,6 @@ function App() {
   );
 }
 
-// Modal Confirmar Eliminación
-    deleteTarget && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setDeleteTarget(null);}},
-      React.createElement("div",{className:"md",style:{maxWidth:400,textAlign:"center",padding:"40px 32px"}},
-        React.createElement("div",{style:{fontSize:48,marginBottom:16}},"🗑️"),
-        React.createElement("h3",{style:{fontSize:20,fontWeight:800,color:"#1A1A2E",marginBottom:12}},"¿Eliminar anuncio?"),
-        React.createElement("p",{style:{fontSize:14,color:"#6B7280",marginBottom:24,lineHeight:1.6}},"Esta acción no se puede deshacer. Tu clasificado será borrado permanentemente de la plataforma."),
-        React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center"}},
-          React.createElement("button",{onClick:function(){setDeleteTarget(null);},
-            style:{flex:1,background:"#F3F4F6",color:"#4B5563",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"background .2s"}},
-            "Cancelar"
-          ),
-          React.createElement("button",{onClick:confirmDelete,
-            style:{flex:1,background:"#EF4444",color:"white",border:"none",padding:"14px",borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 8px 16px rgba(239,68,68,.25)",transition:"transform .2s"}},
-            "Sí, eliminar"
-          )
-        )
-      )
-    )
-
-// ── Componentes auxiliares ────────────────────────────────────
 function ListingCard(props){
   const l=props.listing, cat=getCat(l.category_id), img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
   return React.createElement("div",{className:"card",onClick:function(){if(props.onOpen)props.onOpen(l);}},
