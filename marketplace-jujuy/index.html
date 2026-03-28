@@ -10,10 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
-    // ── Credenciales — reemplazá con las tuyas ──────────────
+    // ── Credenciales ────────────────────────────────────────
     const SUPABASE_URL        = "https://bpdeektcggmwrngnljho.supabase.co";
     const SUPABASE_ANON_KEY   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZGVla3RjZ2dtd3JuZ25samhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTU0NzIsImV4cCI6MjA4OTczMTQ3Mn0.mJ91daJ5IVFt_Fy1z61dcCq6kZrfjXLoIpQmSqkTKis";
-    const UPLOAD_WORKER_URL   = "marketplace-upload.santinomazza09.workers.dev";
+    
+    // ✅ URL corregida con protocolo HTTPS
+    const UPLOAD_WORKER_URL   = "https://marketplace-upload.santinomazza09.workers.dev";
     // ────────────────────────────────────────────────────────
 
     // Inicializar cliente Supabase como variable global "db"
@@ -56,7 +58,12 @@
       const compressed = await compressImage(file);
       const formData = new FormData();
       formData.append("file", compressed, file.name);
-      const res = await fetch(UPLOAD_WORKER_URL, { method: "POST", body: formData });
+      
+      const res = await fetch(UPLOAD_WORKER_URL, { 
+        method: "POST", 
+        body: formData 
+      });
+      
       if (!res.ok) throw new Error("Error al subir imagen");
       return res.json(); // { url, key }
     }
