@@ -501,32 +501,51 @@ function App() {
       )
     ),
 
-    currentView === "home" && React.createElement(React.Fragment, null,
-      React.createElement("div",{style:{background:"var(--color-hero-bg)",padding:"52px 20px 60px",position:"relative",overflow:"hidden"}},
+currentView === "home" && React.createElement(React.Fragment, null,
+      // SECCIÓN HERO CON IMAGEN DE FONDO Y OVERLAY
+      React.createElement("div",{style:{
+        background: "linear-gradient(to bottom, rgba(27, 38, 59, 0.85), rgba(27, 38, 59, 0.5)), url('./assets/fondohero.jpg') center/cover no-repeat",
+        padding:"52px 20px 60px",
+        position:"relative",
+        overflow:"hidden"
+      }},
         React.createElement("div",{style:{position:"absolute",bottom:0,left:0,right:0,height:8,background:"var(--color-surface-banner)",opacity:.9}}),
         React.createElement("div",{style:{position:"absolute",bottom:8,left:0,right:0,height:4,background:"var(--color-accent)",opacity:.5}}),
         React.createElement("div",{style:{position:"absolute",bottom:24,left:20,fontSize:64,opacity:.12}},"🌵"),
         React.createElement("div",{style:{position:"absolute",bottom:24,right:20,fontSize:72,opacity:.12}},"🌵"),
-        React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",textAlign:"center"}},
-          React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:8,background:"var(--color-search-bg)",border:"1px solid var(--color-surface-banner)",borderRadius:20,padding:"6px 16px",marginBottom:18}},
+        
+        React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",textAlign:"center", position: "relative", zIndex: 10}},
+          // Etiqueta superior (Pill) con efecto blur para contrastar con el fondo
+          React.createElement("div",{style:{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.35)",backdropFilter:"blur(4px)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:20,padding:"6px 16px",marginBottom:18}},
             React.createElement("span",{style:{color:"var(--color-accent)",fontSize:12,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}},"🟢 Clasificados gratuitos de Jujuy")
           ),
-          React.createElement("h1",{style:{color:"var(--color-text-hero)",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1.15,letterSpacing:"-1px",marginBottom:14}},
-            "Comprá y vendé en",React.createElement("br"),
+          
+          // Título principal con sombra para legibilidad extrema
+          React.createElement("h1",{style:{color:"var(--color-text-hero)",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1.15,letterSpacing:"-1px",marginBottom:14, textShadow: "0 2px 15px rgba(0,0,0,0.6)"}},
+            "Compra y vendé en",React.createElement("br"),
             React.createElement("span",{style:{color:"var(--color-accent)"}},"Jujuy 🌵")
           ),
-          React.createElement("p",{style:{color:"var(--color-text-muted)",fontSize:"clamp(13px,2vw,16px)",maxWidth:500,margin:"0 auto 32px"}},"Clasificados gratuitos para toda la provincia. Publicá en segundos, llegá a miles."),
+          
+          // Subtítulo oscurecido y con sombra
+          React.createElement("p",{style:{color:"var(--color-text-hero)",opacity: 0.95,fontSize:"clamp(13px,2vw,16px)",maxWidth:500,margin:"0 auto 32px", textShadow: "0 2px 10px rgba(0,0,0,0.6)"}},
+            "Clasificados gratuitos para toda la provincia. Publicá en segundos, llegá a miles."
+          ),
+          
           React.createElement("div",{style:{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}},
-            React.createElement("button",{className:"pb",style:{padding:"14px 32px",fontSize:15,borderRadius:14,background:"var(--color-accent)",boxShadow:"0 8px 24px rgba(0,0,0,.15)"},onClick:function(){setPublishModal(true);}},"✏️ Publicar GRATIS")
+            React.createElement("button",{className:"pb",style:{padding:"14px 32px",fontSize:15,borderRadius:14,background:"var(--color-accent)",boxShadow:"0 8px 24px rgba(0,0,0,.3)"},onClick:function(){setPublishModal(true);}},"✏️ Publicar GRATIS")
           )
         )
       ),
+      
+      // SECCIÓN INFERIOR (Categorías y Banner)
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
+        
+        // BANNER PUBLICITARIO ESTÁTICO (Intacto)
         React.createElement(AdBanner, null),
         
-React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
-        React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Deslizá para ver más rubros"}),          
-        
+        React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
+          
+          
         // 1. Carrusel Horizontal de Imágenes
         React.createElement("div",{className:"hs-container"},
           categories.map(function(cat){
