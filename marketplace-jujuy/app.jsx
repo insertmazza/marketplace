@@ -1,7 +1,7 @@
 const { useState, useEffect } = React;
 
 const categories = [
-  { id:"vehiculos",    label:"Vehículos",   icon:"🚗", image:"./assets/vehiculos.jpg",   subs:["Autos","Camionetas / SUV","Motos","Camiones","Náutica","Planes de Ahorro"] },
+  { id:"vehiculos",    label:"Vehículos",   icon:"🚗", image:"./assets/vehiculos.jpeg",   subs:["Autos","Camionetas / SUV","Motos","Camiones","Náutica","Planes de Ahorro"] },
   { id:"inmuebles",    label:"Inmuebles",   icon:"🏠", image:"./assets/inmuebles.jpg",   subs:["Casas","Departamentos","Terrenos / Lotes","Locales","Campos / Quintas","Galpones"] },
   { id:"servicios",    label:"Servicios",   icon:"🔧", image:"./assets/servicios.jpg",   subs:["Mantenimiento Hogar","Profesionales","Eventos","Transporte","Capacitaciones","Técnicos"] },
   { id:"electronicos", label:"Electrónica", icon:"📱", image:"./assets/electronica.jpg", subs:["Celulares","Computación","Audio / Video","Cámaras","Consolas","Accesorios"] },
