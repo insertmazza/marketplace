@@ -364,18 +364,6 @@ function App() {
         --color-text-main: #252422;
         --color-text-muted: #6C6A65;
       }
-      
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --color-background: #1E1C1A;
-          --color-surface: #2C2A28;
-          --color-primary: #3D2616;
-          --color-secondary: #8A6442;
-          --color-accent: #E55353;
-          --color-text-main: #F5F5F5;
-          --color-text-muted: #A09E9A;
-        }
-      }
 
       *{box-sizing:border-box;margin:0;padding:0}
       ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--color-accent);border-radius:3px}
