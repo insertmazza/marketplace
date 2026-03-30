@@ -14,15 +14,12 @@
     const SUPABASE_URL        = "https://bpdeektcggmwrngnljho.supabase.co";
     const SUPABASE_ANON_KEY   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZGVla3RjZ2dtd3JuZ25samhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNTU0NzIsImV4cCI6MjA4OTczMTQ3Mn0.mJ91daJ5IVFt_Fy1z61dcCq6kZrfjXLoIpQmSqkTKis";
     
-    // ✅ URL corregida con protocolo HTTPS
     const UPLOAD_WORKER_URL   = "https://marketplace-upload.santinomazza09.workers.dev";
     // ────────────────────────────────────────────────────────
 
-    // Inicializar cliente Supabase como variable global "db"
     const { createClient } = supabase;
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Función global de subida de imágenes
     async function compressImage(file) {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -65,11 +62,11 @@
       });
       
       if (!res.ok) throw new Error("Error al subir imagen");
-      return res.json(); // { url, key }
+      return res.json(); 
     }
   </script>
 </head>
-<body style="margin:0;padding:0;background:var(--color-background, #FFFCF2);color:var(--color-text-main, #252422);">
+<body style="margin:0;padding:0;background:var(--color-main-bg, #FBFBF9);color:var(--color-text-main, #22223B);">
   <div id="root"></div>
   <script type="text/babel" src="/app.jsx"></script>
 </body>
