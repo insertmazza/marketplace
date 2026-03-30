@@ -352,6 +352,7 @@ function App() {
   const activeCatData=getCat(activeCat);
 
   return React.createElement("div",{style:{fontFamily:"'Sora','Nunito',sans-serif",background:"var(--color-main-bg)",minHeight:"100vh",color:"var(--color-text-main)",display:"flex",flexDirection:"column"}},
+  
     React.createElement("style",null,`
       @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
       
@@ -409,6 +410,32 @@ function App() {
       .listing-grid { display: grid; grid-template-columns: 1fr 400px; gap: 40px; }
       @media(max-width: 900px){ .listing-grid { grid-template-columns: 1fr; } }
       @media(max-width: 600px){ .mg { grid-template-columns: repeat(2,1fr)!important; } }
+
+      /* NUEVOS ESTILOS PARA CATEGORÍAS Y SUBCATEGORÍAS */
+      .hs-container { display: flex; overflow-x: auto; gap: 16px; padding: 10px 0 24px 0; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+      .hs-container::-webkit-scrollbar { display: none; }
+      .hs-container { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .cat-card { flex: 0 0 auto; width: 130px; cursor: pointer; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease; }
+      @media(max-width: 600px){ .cat-card { width: 110px; } }
+      .cat-card:hover { transform: translateY(-4px); }
+      .cat-img-box { width: 100%; aspect-ratio: 1; border-radius: 16px; overflow: hidden; background: var(--color-surface); border: 2px solid transparent; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+      .cat-card.active .cat-img-box { border-color: var(--color-accent); transform: scale(0.98); box-shadow: 0 0 0 4px rgba(224, 122, 95, 0.15); }
+      .cat-img-box img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
+      .cat-card:hover .cat-img-box img { transform: scale(1.08); }
+      
+      .cat-title { font-size: 15px; font-weight: 700; color: var(--color-text-main); text-align: left; position: relative; align-self: flex-start; }
+      .cat-title::after { content: ''; position: absolute; width: 100%; transform: scaleX(0); height: 2px; bottom: -2px; left: 0; background-color: var(--color-text-main); transform-origin: bottom left; transition: transform 0.25s ease-out; }
+      .cat-card:hover .cat-title::after, .cat-card.active .cat-title::after { transform: scaleX(1); }
+
+      .subcat-wrapper { margin-top: 10px; margin-bottom: 32px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .sub-pill { padding: 10px 20px; border-radius: 99px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; border: 1px solid var(--color-border); white-space: nowrap; font-family: inherit; }
+      .sub-pill.active { background: var(--color-accent); color: var(--color-text-hero); border-color: var(--color-accent); box-shadow: 0 4px 10px rgba(224, 122, 95, 0.3); }
+      .sub-pill:not(.active) { background: var(--color-surface); color: var(--color-text-main); }
+      .sub-pill:not(.active):hover { border-color: var(--color-text-muted); background: var(--color-main-bg); }
+      
+      .fade-slide-down { animation: fadeSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      @keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
     `),
 
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:"var(--color-hero-bg)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.15)":"none",transition:"all .3s"}},
@@ -497,69 +524,50 @@ function App() {
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
         React.createElement(AdBanner,{slot:ads.banner_top}),
         
-      React.createElement("div",{id:"seccion-categorias", style:{marginBottom:36}},
-        React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Seleccioná una para ver sus anuncios"}),          
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:12}},
-            categories.map(function(cat){
-              return React.createElement("div",{key:cat.id,className:"cp",
-                style:{borderColor:activeCat===cat.id?"var(--color-accent)":"transparent",background:activeCat===cat.id?"var(--color-main-bg)":"var(--color-surface)"},
-                onClick:function(){selectCat(cat.id);}},
-                React.createElement("div",{style:{fontSize:28,lineHeight:1}},cat.icon),
-                React.createElement("div",{style:{fontSize:11,fontWeight:700,color:"var(--color-text-main)",textAlign:"center",lineHeight:1.3}},cat.label),
-                React.createElement("div",{style:{fontSize:10,color:"var(--color-text-muted)"}},fmtCount(counts[cat.id]))
-              );
-            })
-          ),
-          activeCat && React.createElement("div",{style:{marginTop:16,background:"var(--color-surface)",borderRadius:16,border:"1px solid var(--color-border)",overflow:"hidden"}},
-            React.createElement("div",{style:{padding:"16px 20px",borderBottom:"1px solid var(--color-border)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
-              React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-                React.createElement("span",{style:{fontSize:24}},(activeCatData||{}).icon||""),
-                React.createElement("div",null,
-                  React.createElement("div",{style:{fontWeight:800,fontSize:16,color:"var(--color-text-main)"}},(activeCatData||{}).label||""),
-                  React.createElement("div",{style:{fontSize:12,color:"var(--color-text-muted)"}},fmtCount(counts[activeCat])+" anuncios")
-                )
+React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
+        React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Deslizá para ver más rubros"}),          
+        
+        // 1. Carrusel Horizontal de Imágenes
+        React.createElement("div",{className:"hs-container"},
+          categories.map(function(cat){
+            const isActive = activeCat === cat.id;
+            return React.createElement("div",{
+              key: cat.id, 
+              className: "cat-card " + (isActive ? "active" : ""),
+              onClick: function(){ selectCat(cat.id); }
+            },
+              React.createElement("div", {className: "cat-img-box"},
+                React.createElement("img", {src: cat.image, alt: cat.label, loading: "lazy"})
               ),
-              React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
-                ((activeCatData||{}).subs||[]).map(function(s){
-                const isActive = activeSubcat === s;
-                return React.createElement("span",{
-                  key: s,
-                  onClick: function() { selectSubcat(s); },
-                  style: {
-                    background: isActive ? "var(--color-accent)" : "var(--color-main-bg)",
-                    color: isActive ? "var(--color-text-hero)" : "var(--color-text-main)",
-                    padding: "5px 12px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all .2s"
-                  },
-                  onMouseEnter: function(e){ if(!isActive){ e.target.style.background="var(--color-accent)"; e.target.style.color="var(--color-text-hero)"; } },
-                  onMouseLeave: function(e){ if(!isActive){ e.target.style.background="var(--color-main-bg)"; e.target.style.color="var(--color-text-main)"; } }
-                }, s);
-              })
-              )
-            ),
-            catLoading ? React.createElement("div",{className:"es"},"⏳ Cargando...") : 
-            catListings.length===0 ? React.createElement("div",{className:"es"},"📭 No hay anuncios") :
-            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:0}},
-              catListings.map(function(l){
-                const img=l.listing_images&&l.listing_images[0]&&l.listing_images[0].url;
-                return React.createElement("div",{key:l.id, style:{display:"flex",gap:12,alignItems:"center",padding:"14px 20px",borderBottom:"1px solid var(--color-border)",cursor:"pointer"}, onClick:function(){openListing(l);}},
-                  React.createElement("div",{style:{width:52,height:52,borderRadius:10,overflow:"hidden",background:"var(--color-main-bg)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}},
-                    img?React.createElement("img",{src:img,style:{width:"100%",height:"100%",objectFit:"cover"}}):(activeCatData||{}).icon||"📦"
-                  ),
-                  React.createElement("div",{style:{flex:1,minWidth:0}},
-                    React.createElement("div",{style:{fontSize:13,fontWeight:700,color:"var(--color-text-main)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},(l.title||"")),
-                    React.createElement("div",{style:{fontSize:14,fontWeight:900,color:"var(--color-accent)"}},(l.price_label||"Consultar"))
-                  )
-                );
-              })
-            )
-          )
+              React.createElement("span", {className: "cat-title"}, cat.label)
+            );
+          })
         ),
 
+        // 2. Renderizado Condicional: Subcategorías tipo "Pills"
+        activeCat && React.createElement("div", {className: "fade-slide-down"},
+          React.createElement("div", {className: "subcat-wrapper"},
+            ((activeCatData||{}).subs||[]).map(function(s){
+              const isActive = activeSubcat === s;
+              return React.createElement("button", {
+                key: s,
+                className: "sub-pill " + (isActive ? "active" : ""),
+                onClick: function() { selectSubcat(s); }
+              }, s);
+            })
+          ),
+          
+          // 3. Listado de anuncios de la categoría seleccionada
+          catLoading ? React.createElement("div",{className:"es"},"⏳ Cargando anuncios...") : 
+          catListings.length === 0 ? React.createElement("div",{className:"es"},"📭 No hay anuncios publicados en esta sección aún.") :
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
+            catListings.map(function(l){
+              return React.createElement(ListingCard,{key:l.id,listing:l,onOpen:openListing});
+            })
+          )
+        )
+      ),
+      
         top.length>0 && React.createElement("div",{style:{marginBottom:36}},
           React.createElement(SecTitle,{title:"🔥 Más vistos",sub:"Ordenados por tráfico real"}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
