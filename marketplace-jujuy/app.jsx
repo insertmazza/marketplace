@@ -522,7 +522,7 @@ function App() {
         )
       ),
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
-        React.createElement(AdBanner,{slot:ads.banner_top}),
+        React.createElement(AdBanner, null),
         
 React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
         React.createElement(SecTitle,{title:"Explorar por categoría",sub:"Deslizá para ver más rubros"}),          
@@ -575,7 +575,6 @@ React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
           )
         ),
 
-        React.createElement(AdBanner,{slot:ads.banner_mid}),
 
         React.createElement("div",{style:{marginBottom:36}},
           React.createElement(SecTitle,{title:"🕐 Últimos Publicados",sub:"Actualizados en tiempo real"}),
@@ -605,7 +604,6 @@ React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
             })
           )
         ),
-        React.createElement(AdBanner,{slot:ads.banner_bottom})
       )
     ),
 
@@ -937,24 +935,25 @@ function ListingCard(props){
   );
 }
 
-function AdBanner(props){
-  const slot=props.slot;
-  if(!slot)return null;
-  return React.createElement("div",{className:"ab",style:{background:slot.bg_color||"var(--color-surface-banner)"}},
+function AdBanner(){
+  return React.createElement("div",{className:"ab",style:{background:"var(--color-surface-banner)"}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:16}},
-      slot.image_url?React.createElement("img",{src:slot.image_url,style:{height:50,borderRadius:8,objectFit:"cover"}}):React.createElement("div",{style:{fontSize:36}},"🎯"),
+      React.createElement("div",{style:{fontSize:36}},"🎯"),
       React.createElement("div",null,
-        React.createElement("div",{style:{color:"var(--color-text-hero)",fontWeight:700,fontSize:16}},slot.title||"Espacio publicitario"),
-        React.createElement("div",{style:{color:"var(--color-text-muted)",fontSize:12,marginTop:2}},"Publicidad · Administrado desde Supabase")
+        React.createElement("div",{style:{color:"var(--color-text-hero)",fontWeight:700,fontSize:16}},"Adquirí tu espacio publicitario. Escribinos!"),
+        React.createElement("div",{style:{color:"var(--color-surface)",opacity:0.8,fontSize:12,marginTop:2}},"Impulsá tu marca en Compra en Jujuy")
       )
     ),
-    React.createElement("a",{href:slot.link_url||"#",target:"_blank",rel:"noopener noreferrer"},
-      React.createElement("button",{className:"ac"},"Ver más →")
+    React.createElement("a",{
+      href:"https://wa.me/5493886108072?text=Hola,%20me%20interesa%20adquirir%20un%20espacio%20publicitario",
+      target:"_blank",
+      rel:"noopener noreferrer"
+    },
+      React.createElement("button",{className:"ac"},"Contactar")
     )
   );
-}
 
-function SecTitle(props){
+}function SecTitle(props){
   return React.createElement("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:props.sub?4:22}},
     React.createElement("div",null,
       React.createElement("div",{style:{fontSize:22,fontWeight:800,color:"var(--color-text-main)"}},props.title),
