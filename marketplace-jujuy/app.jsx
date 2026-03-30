@@ -1,14 +1,14 @@
 const { useState, useEffect } = React;
 
 const categories = [
-  { id:"vehiculos",    label:"Vehículos",   icon:"🚗", color:"var(--color-accent)", subs:["Autos","Camionetas / SUV","Motos","Camiones","Náutica","Planes de Ahorro"] },
-  { id:"inmuebles",    label:"Inmuebles",   icon:"🏠", color:"var(--color-surface-banner)", subs:["Casas","Departamentos","Terrenos / Lotes","Locales","Campos / Quintas","Galpones"] },
-  { id:"servicios",    label:"Servicios",   icon:"🔧", color:"var(--color-hero-bg)", subs:["Mantenimiento Hogar","Profesionales","Eventos","Transporte","Capacitaciones","Técnicos"] },
-  { id:"electronicos", label:"Electrónica", icon:"📱", color:"var(--color-accent)", subs:["Celulares","Computación","Audio / Video","Cámaras","Consolas","Accesorios"] },
-  { id:"hogar",        label:"Hogar",       icon:"🛋️", color:"var(--color-surface-banner)", subs:["Muebles","Jardín","Decoración","Electrodomésticos","Herramientas","Arte"] },
-  { id:"ropa",         label:"Ropa & Moda", icon:"👗", color:"var(--color-accent)", subs:["Ropa Mujer","Ropa Hombre","Zapatillas","Joyas","Relojes","Accesorios"] },
-  { id:"deportes",     label:"Deportes",    icon:"⚽", color:"var(--color-surface-banner)", subs:["Fútbol","Ciclismo","Fitness","Camping","Natación","Artes Marciales"] },
-  { id:"mascotas",     label:"Mascotas",    icon:"🐾", color:"var(--color-hero-bg)", subs:["Acuarios","Accesorios para mascotas","Alimentos para mascotas"] },
+  { id:"vehiculos",    label:"Vehículos",   icon:"🚗", image:"./assets/vehiculos.jpg",   subs:["Autos","Camionetas / SUV","Motos","Camiones","Náutica","Planes de Ahorro"] },
+  { id:"inmuebles",    label:"Inmuebles",   icon:"🏠", image:"./assets/inmuebles.jpg",   subs:["Casas","Departamentos","Terrenos / Lotes","Locales","Campos / Quintas","Galpones"] },
+  { id:"servicios",    label:"Servicios",   icon:"🔧", image:"./assets/servicios.jpg",   subs:["Mantenimiento Hogar","Profesionales","Eventos","Transporte","Capacitaciones","Técnicos"] },
+  { id:"electronicos", label:"Electrónica", icon:"📱", image:"./assets/electronica.jpg", subs:["Celulares","Computación","Audio / Video","Cámaras","Consolas","Accesorios"] },
+  { id:"hogar",        label:"Hogar",       icon:"🛋️", image:"./assets/hogar.jpg",       subs:["Muebles","Jardín","Decoración","Electrodomésticos","Herramientas","Arte"] },
+  { id:"ropa",         label:"Ropa & Moda", icon:"👗", image:"./assets/ropaymoda.jpg",   subs:["Ropa Mujer","Ropa Hombre","Zapatillas","Joyas","Relojes","Accesorios"] },
+  { id:"deportes",     label:"Deportes",    icon:"⚽", image:"./assets/deportes.jpg",    subs:["Fútbol","Ciclismo","Fitness","Camping","Natación","Artes Marciales"] },
+  { id:"mascotas",     label:"Mascotas",    icon:"🐾", image:"./assets/mascotas.jpg",    subs:["Acuarios","Accesorios para mascotas","Alimentos para mascotas"] },
 ];
 
 const securityTips = [
