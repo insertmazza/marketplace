@@ -42,6 +42,7 @@ function App() {
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [search,        setSearch]        = useState("");
   const [activeCat,     setActiveCat]     = useState(null);
+  const [activeSubcat,  setActiveSubcat]  = useState(null);
   const [catListings,   setCatListings]   = useState([]);
   const [catLoading,    setCatLoading]    = useState(false);
   const [megaOpen,      setMegaOpen]      = useState(false);
@@ -190,17 +191,17 @@ async function openListing(l, isDirectLoad = false){
   }
 
   // ── Seleccionar categoría → cargar sus listings ──────────
+// ── Seleccionar categoría → cargar sus anuncios ──────────
   async function selectCat(id){
-    if(activeCat===id){ setActiveCat(null); setCatListings([]); return; }
-    setActiveCat(id); setCatListings([]); setCatLoading(true);
+    if(activeCat===id){ setActiveCat(null); setActiveSubcat(null); setCatListings([]); return; }
+    setActiveCat(id); setActiveSubcat(null); setCatListings([]); setCatLoading(true);
     
     if(currentView !== "home"){ goHome(); }
-    
-    // NUEVO: Scroll automático hacia los resultados
+
+    // Scroll automático
     setTimeout(function() {
       const el = document.getElementById("seccion-categorias");
       if (el) {
-        // Calcula la posición y le resta 80px para que el menú superior no tape el título
         const y = el.getBoundingClientRect().top + window.scrollY - 80; 
         window.scrollTo({top: y, behavior: 'smooth'});
       }
@@ -213,6 +214,26 @@ async function openListing(l, isDirectLoad = false){
     setCatLoading(false);
   }
 
+  // ── Seleccionar SUBCATEGORÍA → filtrar listado ──────────
+  async function selectSubcat(sub){
+    // Si toca la que ya está activa, la deselecciona
+    const newSub = activeSubcat === sub ? null : sub;
+    setActiveSubcat(newSub);
+    setCatListings([]); setCatLoading(true);
+    try{
+      let query = db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",activeCat);
+      
+      // Filtro de base de datos
+      if (newSub) {
+        query = query.eq("subcategory", newSub);
+      }
+      
+      const r = await query.order("created_at",{ascending:false}).limit(20);
+      setCatListings(r.data||[]);
+    }catch(e){console.error(e);}
+    setCatLoading(false);
+  }
+
   async function pauseListing(id,current){
     const ns=current==="active"?"paused":"active";
     await db.from("listings").update({status:ns}).eq("id",id);
@@ -220,14 +241,27 @@ async function openListing(l, isDirectLoad = false){
   }
 
   // ✅ NUEVA LÓGICA DE ELIMINACIÓN
+  // ✅ NUEVA LÓGICA DE ELIMINACIÓN CORREGIDA
   async function confirmDelete(){
     if(!deleteTarget) return;
     const id = deleteTarget;
     setDeleteTarget(null);
     
-    await db.from("listings").delete().eq("id",id);
-    setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
-    await loadData();
+    try {
+      // 1. Mandamos la orden a Supabase y esperamos confirmación
+      const { error } = await db.from("listings").delete().eq("id", id);
+      if (error) throw error;
+      
+      // 2. Solo si no hubo error, lo quitamos de la pantalla del perfil
+      setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
+      
+      // 3. Recargamos los datos globales (Inicio) para que desaparezca de ahí también
+      await loadData(); 
+      
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+      alert("Hubo un error al eliminar el anuncio. Revisa la consola.");
+    }
   }
 
   function handleFiles(e){
@@ -480,8 +514,24 @@ async function openListing(l, isDirectLoad = false){
               ),
               React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
                 ((activeCatData||{}).subs||[]).map(function(s){
-                  return React.createElement("span",{key:s,style:{background:"#F3F4F6",color:"#374151",padding:"5px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer"}},s);
-                })
+                const isActive = activeSubcat === s;
+                return React.createElement("span",{
+                  key: s,
+                  onClick: function() { selectSubcat(s); },
+                  style: {
+                    background: isActive ? "#FF6B35" : "#F3F4F6",
+                    color: isActive ? "white" : "#374151",
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all .2s"
+                  },
+                  onMouseEnter: function(e){ if(!isActive){ e.target.style.background="#FF6B35"; e.target.style.color="white"; } },
+                  onMouseLeave: function(e){ if(!isActive){ e.target.style.background="#F3F4F6"; e.target.style.color="#374151"; } }
+                }, s);
+              })
               )
             ),
             catLoading ? React.createElement("div",{className:"es"},"⏳ Cargando...") : 
