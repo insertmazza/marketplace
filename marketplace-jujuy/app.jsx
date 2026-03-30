@@ -512,7 +512,7 @@ function App() {
             React.createElement("span",{style:{color:"var(--color-accent)",fontSize:12,fontWeight:700,letterSpacing:"1px",textTransform:"uppercase"}},"🟢 Clasificados gratuitos de Jujuy")
           ),
           React.createElement("h1",{style:{color:"var(--color-text-hero)",fontSize:"clamp(28px,5vw,52px)",fontWeight:900,lineHeight:1.15,letterSpacing:"-1px",marginBottom:14}},
-            "Compra y vendé en",React.createElement("br"),
+            "Comprá y vendé en",React.createElement("br"),
             React.createElement("span",{style:{color:"var(--color-accent)"}},"Jujuy 🌵")
           ),
           React.createElement("p",{style:{color:"var(--color-text-muted)",fontSize:"clamp(13px,2vw,16px)",maxWidth:500,margin:"0 auto 32px"}},"Clasificados gratuitos para toda la provincia. Publicá en segundos, llegá a miles."),
