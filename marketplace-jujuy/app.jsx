@@ -467,6 +467,7 @@ function App() {
       }
     `),
 
+
 // ─── HEADER / NAVBAR ──────────────────────────────────────────────
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:"var(--color-hero-bg)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.15)":"none",transition:"all .3s"}},
       React.createElement("div",{className:"nav-container"},
@@ -501,8 +502,8 @@ function App() {
           })
         ),
         
-        // ACCIONES DESKTOP (Ocultas en Móvil)
-        React.createElement("div",{className:"desktop-only", style:{alignItems:"center",gap:4,marginLeft:"auto"}},
+        // ACCIONES DESKTOP (Ocultas en Móvil) - ¡CORREGIDO: SE AGREGÓ display:"flex"!
+        React.createElement("div",{className:"desktop-only", style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
           user
             ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
                 React.createElement("button",{className:"nl",onClick:openProfile,style:{display:"flex",alignItems:"center",gap:6,background:currentView==="profile"?"var(--color-search-bg)":"transparent"}},
@@ -564,7 +565,8 @@ function App() {
         )
       )
     ),
-currentView === "home" && React.createElement(React.Fragment, null,
+    
+    currentView === "home" && React.createElement(React.Fragment, null,
       // SECCIÓN HERO CON IMAGEN DE FONDO Y OVERLAY
       React.createElement("div",{style:{
         background: "linear-gradient(to bottom, rgba(27, 38, 59, 0.85), rgba(27, 38, 59, 0.5)), url('./assets/fondohero.jpg') center/cover no-repeat",
@@ -651,7 +653,7 @@ currentView === "home" && React.createElement(React.Fragment, null,
       ),
       
         top.length>0 && React.createElement("div",{style:{marginBottom:36}},
-          React.createElement(SecTitle,{title:"🔥 Más vistos",sub:"Ordenados por tráfico real"}),
+          React.createElement(SecTitle,{title:"🔥 Populares",sub:"Boosteá tu publicidad contactandonos!"}),
           React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:20}},
             top.map(function(l){return React.createElement(ListingCard,{key:l.id,listing:l,onOpen:openListing});})
           )
