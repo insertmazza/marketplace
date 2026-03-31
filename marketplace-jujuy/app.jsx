@@ -47,6 +47,11 @@ function App() {
   const [catLoading,    setCatLoading]    = useState(false);
   const [megaOpen,      setMegaOpen]      = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // ✅ ESTADOS DE FILTROS DINÁMICOS
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [filters,          setFilters]          = useState({});
+
   const [scrolled,      setScrolled]      = useState(false);
   const [activeTab,     setActiveTab]     = useState("Todos");
   
@@ -192,8 +197,9 @@ function App() {
   }
 
   async function selectCat(id){
-    if(activeCat===id){ setActiveCat(null); setActiveSubcat(null); setCatListings([]); return; }
-    setActiveCat(id); setActiveSubcat(null); setCatListings([]); setCatLoading(true);
+    // ✅ Se limpian los filtros al cambiar de categoría principal
+    if(activeCat===id){ setActiveCat(null); setActiveSubcat(null); setFilters({}); setCatListings([]); return; }
+    setActiveCat(id); setActiveSubcat(null); setFilters({}); setCatListings([]); setCatLoading(true);
     
     if(currentView !== "home"){ goHome(); }
 
@@ -213,8 +219,10 @@ function App() {
   }
 
   async function selectSubcat(sub){
+    // ✅ Se limpian los filtros al cambiar de subcategoría para evitar cruce de datos
     const newSub = activeSubcat === sub ? null : sub;
     setActiveSubcat(newSub);
+    setFilters({});
     setCatListings([]); setCatLoading(true);
     try{
       let query = db.from("listings").select("*,listing_images(url)").eq("status","active").eq("category_id",activeCat);
@@ -342,6 +350,116 @@ function App() {
     setPubBusy(false);
   }
 
+  // ✅ LOGICA DE RENDERIZADO DE FILTROS DINÁMICOS
+  function renderDynamicFilters() {
+    const elements = [];
+    const pushInput = (label, el) => {
+      elements.push(React.createElement("div", { key: label, className: "filter-group" },
+        React.createElement("label", { className: "filter-label" }, label),
+        el
+      ));
+    };
+
+    // Filtros de Auto / SUV
+    if (activeSubcat === "Autos" || activeSubcat === "Camionetas / SUV") {
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let y = currentYear; y >= 1970; y--) years.push(y);
+      
+      pushInput("Año", React.createElement("select", { className: "filter-input", value: filters.anio || "", onChange: e => setFilters(Object.assign({}, filters, {anio: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquier año"),
+        years.map(y => React.createElement("option", { key: y, value: y }, y))
+      ));
+      pushInput("Cantidad de puertas", React.createElement("div", { className: "filter-radio-group" },
+        ["3", "5"].map(p => React.createElement("label", { key: p, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "puertas", value: p, checked: filters.puertas === p, onChange: e => setFilters(Object.assign({}, filters, {puertas: e.target.value})) }),
+          p + " puertas"
+        ))
+      ));
+      pushInput("Condición", React.createElement("div", { className: "filter-radio-group" },
+        ["Nuevo", "Usado"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "condicion", value: c, checked: filters.condicion === c, onChange: e => setFilters(Object.assign({}, filters, {condicion: e.target.value, kilometraje: ""})) }),
+          c
+        ))
+      ));
+      if (filters.condicion === "Usado") {
+        pushInput("Kilometraje", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 50000", value: filters.kilometraje || "", onChange: e => setFilters(Object.assign({}, filters, {kilometraje: e.target.value})) }));
+      }
+    }
+
+    // Filtros de Motos
+    if (activeSubcat === "Motos") {
+       pushInput("Cilindrada", React.createElement("div", { className: "filter-radio-group" },
+        ["150cc o menos", "151cc a 399cc", "+400cc"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "cilindrada", value: c, checked: filters.cilindrada === c, onChange: e => setFilters(Object.assign({}, filters, {cilindrada: e.target.value})) }),
+          c
+        ))
+      ));
+    }
+
+    // Filtros Inmuebles Residenciales
+    if (activeSubcat === "Casas" || activeSubcat === "Departamentos") {
+      pushInput("Dormitorios", React.createElement("select", { className: "filter-input", value: filters.dormitorios || "", onChange: e => setFilters(Object.assign({}, filters, {dormitorios: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquiera"),
+        ["1", "2", "3", "4", "5+"].map(d => React.createElement("option", { key: d, value: d }, d))
+      ));
+      pushInput("Ambientes", React.createElement("select", { className: "filter-input", value: filters.ambientes || "", onChange: e => setFilters(Object.assign({}, filters, {ambientes: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquiera"),
+        ["Monoambiente", "2 ambientes", "3 ambientes", "4+ ambientes"].map(a => React.createElement("option", { key: a, value: a }, a))
+      ));
+      pushInput("Publica", React.createElement("div", { className: "filter-radio-group" },
+        ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("label", { key: p, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "publica", value: p, checked: filters.publica === p, onChange: e => setFilters(Object.assign({}, filters, {publica: e.target.value})) }),
+          p
+        ))
+      ));
+    }
+
+    // Filtros Inmuebles Terrenos/Galpones
+    if (activeSubcat === "Terrenos / Lotes" || activeSubcat === "Galpones") {
+      pushInput("Área (m²)", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 300", value: filters.area || "", onChange: e => setFilters(Object.assign({}, filters, {area: e.target.value})) }));
+      pushInput("Publica", React.createElement("div", { className: "filter-radio-group" },
+        ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("label", { key: p, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "publica_lote", value: p, checked: filters.publica_lote === p, onChange: e => setFilters(Object.assign({}, filters, {publica_lote: e.target.value})) }),
+          p
+        ))
+      ));
+    }
+
+    // Filtros de Ropa
+    if (activeSubcat === "Ropa Mujer" || activeSubcat === "Ropa Hombre") {
+       pushInput("Talle", React.createElement("div", { className: "filter-radio-group" },
+        ["XS", "S", "M", "L", "XL", "XXL"].map(t => React.createElement("button", {
+          key: t,
+          className: "sub-pill " + (filters.talle === t ? "active" : ""),
+          style: { padding: "6px 12px", fontSize: "12px", margin: 0 },
+          onClick: (e) => { e.preventDefault(); setFilters(Object.assign({}, filters, {talle: t === filters.talle ? "" : t})); }
+        }, t))
+      ));
+    }
+
+    // Filtros Zapatillas
+    if (activeSubcat === "Zapatillas") {
+       pushInput("Talle", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 40", value: filters.talleCalzado || "", onChange: e => setFilters(Object.assign({}, filters, {talleCalzado: e.target.value})) }));
+       pushInput("Género", React.createElement("div", { className: "filter-radio-group" },
+        ["Hombre", "Mujer", "Unisex"].map(g => React.createElement("label", { key: g, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "genero", value: g, checked: filters.genero === g, onChange: e => setFilters(Object.assign({}, filters, {genero: e.target.value})) }),
+          g
+        ))
+      ));
+    }
+
+    // Filtros Relojes
+    if (activeSubcat === "Relojes") {
+       pushInput("Movimiento", React.createElement("select", { className: "filter-input", value: filters.movimiento || "", onChange: e => setFilters(Object.assign({}, filters, {movimiento: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquiera"),
+        ["Cuarzo", "Automático", "A cuerda"].map(m => React.createElement("option", { key: m, value: m }, m))
+      ));
+    }
+
+    return elements;
+  }
+
   const filtered=recent.filter(function(l){
     return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
   });
@@ -412,7 +530,7 @@ function App() {
       @media(max-width: 900px){ .listing-grid { grid-template-columns: 1fr; } }
       @media(max-width: 600px){ .mg { grid-template-columns: repeat(2,1fr)!important; } }
 
-      /* NUEVOS ESTILOS PARA CATEGORÍAS Y SUBCATEGORÍAS */
+      /* ESTILOS PARA CATEGORÍAS Y SUBCATEGORÍAS */
       .hs-container { display: flex; overflow-x: auto; gap: 16px; padding: 10px 0 24px 0; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
       .hs-container::-webkit-scrollbar { display: none; }
       .hs-container { -ms-overflow-style: none; scrollbar-width: none; }
@@ -429,7 +547,7 @@ function App() {
       .cat-title::after { content: ''; position: absolute; width: 100%; transform: scaleX(0); height: 2px; bottom: -2px; left: 0; background-color: var(--color-text-main); transform-origin: bottom left; transition: transform 0.25s ease-out; }
       .cat-card:hover .cat-title::after, .cat-card.active .cat-title::after { transform: scaleX(1); }
 
-      .subcat-wrapper { margin-top: 10px; margin-bottom: 32px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .subcat-wrapper { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       .sub-pill { padding: 10px 20px; border-radius: 99px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; border: 1px solid var(--color-border); white-space: nowrap; font-family: inherit; }
       .sub-pill.active { background: var(--color-accent); color: var(--color-text-hero); border-color: var(--color-accent); box-shadow: 0 4px 10px rgba(224, 122, 95, 0.3); }
       .sub-pill:not(.active) { background: var(--color-surface); color: var(--color-text-main); }
@@ -449,7 +567,22 @@ function App() {
       .mobile-dropdown-item { padding: 14px 16px; color: var(--color-text-hero); text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 8px; transition: background 0.2s; text-align: left; background: transparent; border: none; font-family: inherit; cursor: pointer; width: 100%; display: block; }
       .mobile-dropdown-item:hover { background: var(--color-search-bg); }
 
-      /* Ajustes estrictos para pantallas pequeñas (< 768px) */
+      /* ✅ ESTILOS DEL MENÚ LATERAL (DRAWER) DE FILTROS */
+      .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; opacity: 0; animation: fadeIn 0.3s forwards; backdrop-filter: blur(2px); }
+      .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: 320px; background: var(--color-surface); z-index: 2001; transform: translateX(-100%); animation: slideInLeft 0.3s forwards; display: flex; flex-direction: column; box-shadow: 4px 0 25px rgba(0,0,0,0.15); }
+      .drawer-header { padding: 20px 24px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-main-bg); }
+      .drawer-body { padding: 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px; }
+      .drawer-footer { padding: 20px 24px; border-top: 1px solid var(--color-border); background: var(--color-main-bg); }
+      .filter-group { display: flex; flex-direction: column; gap: 10px; }
+      .filter-label { font-size: 14px; font-weight: 700; color: var(--color-text-main); }
+      .filter-input { background: var(--color-surface); color: var(--color-text-main); border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; font-size: 14px; font-family: inherit; width: 100%; outline: none; transition: border-color 0.2s; }
+      .filter-input:focus { border-color: var(--color-accent); }
+      .filter-radio-group { display: flex; gap: 14px; flex-wrap: wrap; }
+      .filter-radio-label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-text-main); cursor: pointer; font-weight: 500; }
+      .filter-radio-label input[type="radio"] { accent-color: var(--color-accent); width: 16px; height: 16px; cursor: pointer; }
+      @keyframes fadeIn { to { opacity: 1; } }
+      @keyframes slideInLeft { to { transform: translateX(0); } }
+      
       @media(max-width: 768px) {
         .nav-container { padding: 0 12px; gap: 8px; }
         .logo-icon { width: 30px; height: 30px; font-size: 16px; }
@@ -458,12 +591,11 @@ function App() {
         .search-container { max-width: 170px; height: 36px; padding: 0 10px; }
         .desktop-only { display: none !important; }
         .mobile-only { display: flex !important; }
+        .drawer { width: 85%; }
       }
-      
-      /* Ajuste extra para celulares muy angostos (< 400px) */
       @media(max-width: 400px) {
         .search-container { max-width: 130px; }
-        .logo-text-wrapper { display: none; } /* Oculta texto, deja solo el cactus */
+        .logo-text-wrapper { display: none; }
       }
     `),
 
@@ -502,7 +634,7 @@ function App() {
           })
         ),
         
-        // ACCIONES DESKTOP (Ocultas en Móvil) - ¡CORREGIDO: SE AGREGÓ display:"flex"!
+        // ACCIONES DESKTOP
         React.createElement("div",{className:"desktop-only", style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
           user
             ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
@@ -520,7 +652,7 @@ function App() {
           React.createElement("button",{className:"pb",onClick:function(){setPublishModal(true);}},"✏️ Publicar")
         ),
         
-        // ACCIONES MOBILE: HAMBURGUESA (Oculta en Desktop)
+        // ACCIONES MOBILE: HAMBURGUESA
         React.createElement("div",{className:"mobile-only", style:{alignItems:"center", marginLeft:"auto"}},
           React.createElement("button", {
             className: "hamburger",
@@ -547,7 +679,7 @@ function App() {
         }, "📢 Adquirir espacio publicitario")
       ),
 
-      // MEGA MENU DESKTOP (Intacto)
+      // MEGA MENU DESKTOP
       megaOpen && React.createElement("div",{className:"desktop-only", style:{position:"absolute",top:"calc(100% + 8px)",left:0,right:0,background:"var(--color-surface)",borderRadius:"0 0 20px 20px",boxShadow:"0 20px 60px rgba(0,0,0,.15)",zIndex:200,padding:28}},
         React.createElement("div",{className:"mg",style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,maxWidth:1200,margin:"0 auto"}},
           categories.map(function(cat){
@@ -605,11 +737,10 @@ function App() {
       // SECCIÓN INFERIOR (Categorías y Banner)
       React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px", width:"100%"}},
         
-        // BANNER PUBLICITARIO ESTÁTICO (Intacto)
+        // BANNER PUBLICITARIO ESTÁTICO
         React.createElement(AdBanner, null),
         
         React.createElement("div",{id:"seccion-categorias", style:{marginBottom:48}},
-          
           
         // 1. Carrusel Horizontal de Imágenes
         React.createElement("div",{className:"hs-container"},
@@ -628,17 +759,27 @@ function App() {
           })
         ),
 
-        // 2. Renderizado Condicional: Subcategorías tipo "Pills"
+        // 2. Renderizado Condicional: Subcategorías y Botón de Filtros
         activeCat && React.createElement("div", {className: "fade-slide-down"},
-          React.createElement("div", {className: "subcat-wrapper"},
-            ((activeCatData||{}).subs||[]).map(function(s){
-              const isActive = activeSubcat === s;
-              return React.createElement("button", {
-                key: s,
-                className: "sub-pill " + (isActive ? "active" : ""),
-                onClick: function() { selectSubcat(s); }
-              }, s);
-            })
+          
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", marginBottom: "32px" } },
+            React.createElement("div", {className: "subcat-wrapper"},
+              ((activeCatData||{}).subs||[]).map(function(s){
+                const isActive = activeSubcat === s;
+                return React.createElement("button", {
+                  key: s,
+                  className: "sub-pill " + (isActive ? "active" : ""),
+                  onClick: function() { selectSubcat(s); }
+                }, s);
+              })
+            ),
+            
+            // ✅ NUEVO: BOTÓN DE FILTROS
+            React.createElement("button", {
+              className: "pb",
+              style: { background: "var(--color-surface)", color: "var(--color-text-main)", border: "1px solid var(--color-border)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: "8px" },
+              onClick: function() { setIsFilterMenuOpen(true); }
+            }, "⚙️ Filtros")
           ),
           
           // 3. Listado de anuncios de la categoría seleccionada
@@ -687,7 +828,7 @@ function App() {
               );
             })
           )
-        ),
+        )
       )
     ),
 
@@ -839,6 +980,36 @@ function App() {
       style:{position:"fixed",bottom:28,right:28,background:"var(--color-accent)",color:"var(--color-text-hero)",border:"none",width:60,height:60,borderRadius:"50%",fontSize:24,cursor:"pointer",boxShadow:"0 8px 24px rgba(0,0,0,.2)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}
     },"✏️"),
 
+    // ✅ NUEVO: DRAWER LATERAL DE FILTROS DINÁMICOS
+    isFilterMenuOpen && React.createElement("div", null,
+      React.createElement("div", { className: "drawer-overlay", onClick: () => setIsFilterMenuOpen(false) }),
+      React.createElement("div", { className: "drawer" },
+        React.createElement("div", { className: "drawer-header" },
+          React.createElement("h3", { style: { fontSize: 18, fontWeight: 800, margin: 0, color: "var(--color-text-main)" } }, "Filtros"),
+          React.createElement("button", { onClick: () => setIsFilterMenuOpen(false), style: { background: "none", border: "none", fontSize: 28, cursor: "pointer", color: "var(--color-text-main)", lineHeight: 1 } }, "×")
+        ),
+        React.createElement("div", { className: "drawer-body" },
+          
+          // Filtro Global: Precio
+          React.createElement("div", { className: "filter-group" },
+            React.createElement("label", { className: "filter-label" }, "Precio"),
+            React.createElement("div", { style: { display: "flex", gap: 10 } },
+              React.createElement("input", { type: "number", placeholder: "Mínimo", className: "filter-input", value: filters.precioMin || "", onChange: (e) => setFilters(Object.assign({}, filters, {precioMin: e.target.value})) }),
+              React.createElement("input", { type: "number", placeholder: "Máximo", className: "filter-input", value: filters.precioMax || "", onChange: (e) => setFilters(Object.assign({}, filters, {precioMax: e.target.value})) })
+            )
+          ),
+          
+          // Cargar los filtros específicos de la subcategoría
+          renderDynamicFilters()
+          
+        ),
+        React.createElement("div", { className: "drawer-footer" },
+          React.createElement("button", { className: "pb", style: { width: "100%", padding: "14px", fontSize: "14px" }, onClick: () => { setIsFilterMenuOpen(false); /* Aquí se podría despachar el fetch a Supabase en el futuro */ } }, "Aplicar Filtros")
+        )
+      )
+    ),
+
+    // Modales de UI Restantes (Intactos)
     deleteTarget && React.createElement("div",{className:"ov",onClick:function(e){if(e.target===e.currentTarget)setDeleteTarget(null);}},
       React.createElement("div",{className:"md",style:{maxWidth:400,textAlign:"center",padding:"40px 32px"}},
         React.createElement("div",{style:{fontSize:48,marginBottom:16}},"🗑️"),
