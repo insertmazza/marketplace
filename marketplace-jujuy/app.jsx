@@ -7,7 +7,7 @@ const categories = [
   { id:"electronicos", label:"Electrónica", icon:"📱", image:"./assets/electronica.jpg", subs:["Celulares","Computación","Audio / Video","Cámaras","Consolas","Accesorios"] },
   { id:"hogar",        label:"Hogar",       icon:"🛋️", image:"./assets/hogar.jpg",       subs:["Muebles","Jardín","Decoración","Electrodomésticos","Herramientas","Arte"] },
   { id:"ropa",         label:"Ropa & Moda", icon:"👗", image:"./assets/ropaymoda.jpg",   subs:["Ropa Mujer","Ropa Hombre","Zapatillas","Joyas","Relojes","Accesorios"] },
-  { id:"deportes",     label:"Deportes",    icon:"⚽", image:"./assets/deportes.jpg",    subs:["Fútbol","Ciclismo","Fitness","Camping","Natación","Artes Marciales"] },
+  { id:"deportes",     label:"Deportes",    icon:"⚽", image:"./assets/deportes.jpg",    subs:["Fútbol","Ciclismo","Fitness","Camping","Natación","Artes Marciales","Volley","Básquet","Pesca","Caza"] },
   { id:"mascotas",     label:"Mascotas",    icon:"🐾", image:"./assets/mascotas.jpg",    subs:["Acuarios","Accesorios para mascotas","Alimentos para mascotas"] },
 ];
 
@@ -350,7 +350,7 @@ function App() {
     setPubBusy(false);
   }
 
-  // ✅ LOGICA DE RENDERIZADO DE FILTROS DINÁMICOS
+
 // ✅ LOGICA DE RENDERIZADO DE FILTROS DINÁMICOS
   function renderDynamicFilters() {
     const elements = [];
@@ -412,11 +412,28 @@ function App() {
       }
     }
 
-    // -- 2. FILTROS PARA DEPORTES (Ciclismo) --
+// -- 2. FILTROS PARA DEPORTES (Ciclismo) --
     if (activeSubcat === "Ciclismo") {
+      pushInput("Condición", React.createElement("div", { className: "filter-radio-group" },
+        ["Nuevo", "Usado"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "condicion_ciclismo", value: c, checked: filters.condicion === c, onChange: e => setFilters(Object.assign({}, filters, {condicion: e.target.value})) }),
+          c
+        ))
+      ));
+      
       pushInput("Modalidad", React.createElement("select", { className: "filter-input", value: filters.modalidad || "", onChange: e => setFilters(Object.assign({}, filters, {modalidad: e.target.value})) },
         React.createElement("option", { value: "" }, "Cualquiera"),
         ["Ruta", "MTB", "Triatlón", "Fixie", "Playera"].map(m => React.createElement("option", { key: m, value: m }, m))
+      ));
+
+      pushInput("Parte / Artículo", React.createElement("select", { className: "filter-input", value: filters.parte || "", onChange: e => setFilters(Object.assign({}, filters, {parte: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquiera"),
+        [
+          "Bici completa", "Cuadro", "Frenos", "Cambios / Transmisión", 
+          "Cassette / Piñones", "Manubrio", "Ciclocomputador", 
+          "Ruedas / Llantas", "Horquilla / Suspensión", "Asiento", 
+          "Pedales", "Indumentaria / Cascos"
+        ].map(p => React.createElement("option", { key: p, value: p }, p))
       ));
     }
 
@@ -489,7 +506,7 @@ function App() {
 
     return elements;
   }
-  
+
   const filtered=recent.filter(function(l){
     return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
   });
