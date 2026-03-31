@@ -462,11 +462,11 @@ function App() {
     ) : null;
   }
 
-  // Filtrado general para pestañas de listado
-  const filtered=recent.filter(function(l){
-    return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
+// Filtrado general para pestañas (Desconectado de la barra de búsqueda)
+  const filtered = recent.filter(function(l){
+    return (activeTab === "Todos" || l.category_id === activeTab);
   });
-  
+
   // Filtrado de la barra de búsqueda superior en tiempo real
   const searchResults = recent.filter(function(l) {
     if(!search.trim()) return false;
@@ -549,8 +549,7 @@ function App() {
       @keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
 
       /* HEADER & DROPDOWNS */
-      .nav-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; height: 66px; width: 100%; overflow: hidden; }
-      .logo-icon { width: 38px; height: 38px; font-size: 20px; }
+      .nav-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; height: 66px; width: 100%; overflow: visible; }      .logo-icon { width: 38px; height: 38px; font-size: 20px; }
       .logo-title { font-size: 16px; }
       .logo-sub { font-size: 10px; }
       .search-container { flex: 1; max-width: 480px; height: 42px; padding: 0 14px; position: relative; }
@@ -610,32 +609,41 @@ function App() {
         ),
         
         // ✅ NUEVA BARRA DE BÚSQUEDA INTERACTIVA
-        React.createElement("div",{className:"search-container", style:{background:"var(--color-search-bg)",borderRadius:12,display:"flex",alignItems:"center",border:"1px solid rgba(255,255,255,.1)"}},
+        React.createElement("div",{className:"search-container", style:{background:"var(--color-search-bg)",borderRadius:12,display:"flex",alignItems:"center",border:"1px solid rgba(255,255,255,.1)", position:"relative"}},
           React.createElement("span",{style:{marginRight:8,fontSize:16,color:"var(--color-text-hero)",opacity:.7}},"🔍"),
           React.createElement("input",{
             style:{flex:1,border:"none",outline:"none",fontSize:14,fontFamily:"inherit",background:"transparent",color:"var(--color-text-hero)", width:"100%"},
             placeholder:"Buscar...",
             value:search,
-            onFocus: () => setIsSearchFocused(true),
-            onBlur: () => setTimeout(() => setIsSearchFocused(false), 200),
-            onChange: function(e){ setSearch(e.target.value); },
+            onFocus: function() { setIsSearchFocused(true); },
+            onBlur: function() { setTimeout(function(){ setIsSearchFocused(false); }, 200); },
+            onChange: function(e){
+              // ¡SOLO actualiza el texto, NO cambia la vista de la página!
+              setSearch(e.target.value);
+            },
             onKeyDown: function(e){
-              if (e.key === 'Enter' && search.trim() !== "") {
-                window.history.pushState({}, '', '/busqueda?q=' + encodeURIComponent(search));
-                setCurrentView("search");
+              // Al presionar Enter, se viaja a la página de búsqueda
+              if (e.key === 'Enter') {
+                if (search.trim() !== "") {
+                  window.history.pushState({}, '', '/busqueda?q=' + encodeURIComponent(search));
+                  setCurrentView("search");
+                } else {
+                  window.history.pushState({}, '', '/');
+                  setCurrentView("home");
+                }
                 setIsSearchFocused(false);
                 e.target.blur();
               }
             }
           }),
           
-          // Dropdown de Sugerencias
+          // DROPDOWN DE SUGERENCIAS FLOTANTE
           (isSearchFocused && search.trim() !== "") && React.createElement("div", {className: "search-dropdown"},
-            searchResults.length > 0 ? searchResults.slice(0,6).map(l =>
-              React.createElement("div", {
+            searchResults.length > 0 ? searchResults.slice(0,6).map(function(l){
+              return React.createElement("div", {
                 key: l.id,
                 className: "search-item",
-                onClick: () => { openListing(l); setSearch(""); }
+                onClick: function() { openListing(l); setSearch(""); }
               },
                 React.createElement("div", {style:{width:36, height:36, borderRadius:8, background:"var(--color-main-bg)", overflow:"hidden", flexShrink:0}},
                   l.listing_images && l.listing_images[0] ? React.createElement("img", {src: l.listing_images[0].url, style:{width:"100%", height:"100%", objectFit:"cover"}}) : React.createElement("div",{style:{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}},"📦")
@@ -644,8 +652,8 @@ function App() {
                   React.createElement("div", {style:{fontSize:13, fontWeight:700, color:"var(--color-text-main)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}, l.title),
                   React.createElement("div", {style:{fontSize:12, color:"var(--color-accent)", fontWeight:800}}, l.price_label || "Consultar")
                 )
-              )
-            ) : React.createElement("div", {style:{padding:16, fontSize:13, color:"var(--color-text-muted)", textAlign:"center"}}, "Presioná Enter para buscar todos los anuncios de '" + search + "'.")
+              );
+            }) : React.createElement("div", {style:{padding:16, fontSize:13, color:"var(--color-text-muted)", textAlign:"center"}}, "Presioná Enter para buscar anuncios de '" + search + "'.")
           )
         ),
         
