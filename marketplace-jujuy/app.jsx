@@ -37,7 +37,11 @@ function App() {
   const [currentView,   setCurrentView]   = useState("home"); 
   const [currentListing,setCurrentListing]= useState(null); 
   const [activeImageIdx, setActiveImageIdx] = useState(0);
-  const [search,        setSearch]        = useState("");
+  
+  // ✅ ESTADOS DE BÚSQUEDA Y SUGERENCIAS
+  const [search,          setSearch]          = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
   const [activeCat,     setActiveCat]     = useState(null);
   const [activeSubcat,  setActiveSubcat]  = useState(null);
   const [catListings,   setCatListings]   = useState([]);
@@ -65,10 +69,8 @@ function App() {
   const [counts,   setCounts]   = useState({});
   const [recent,   setRecent]   = useState([]);
   const [top,      setTop]      = useState([]);
-  const [ads,      setAds]      = useState(defaultAdSlots);
   const [loading,  setLoading]  = useState(true);
 
-  // ✅ ESTADO DEL FORMULARIO DE PUBLICACIÓN (Expandido con campos dinámicos)
   const [form, setForm] = useState({
     title:"",desc:"",price:"",ptype:"valor",cur:"ARS",cat:"",sub:"",loc:"",phone:"",files:[],previews:[],
     condicion:"", km:"", anio:"", puertas:"", cilindrada:"", modalidad:"", parte:"", formato:"", dormitorios:"", ambientes:"", publica:"", area:"", talle:"", genero:"", movimiento:""
@@ -111,7 +113,6 @@ function App() {
           setAuthModal(true);
         }
       } 
-      // ✅ NUEVA RUTA: PUBLICAR
       else if (path === '/publicar') {
         if (currentUser) {
           setCurrentView("publish");
@@ -165,11 +166,6 @@ function App() {
       setTop(tp.data||[]);
       const rc=await db.from("listings").select("*,listing_images(url)").eq("status","active").order("created_at",{ascending:false}).limit(12);
       setRecent(rc.data||[]);
-      const ad=await db.from("ad_slots").select("*").eq("active",true);
-      if(ad.data&&ad.data.length){
-        const s=ad.data.reduce(function(a,x){a[x.slot_id]=x;return a;},{});
-        setAds(function(p){return Object.assign({},p,s);});
-      }
     }catch(e){console.error(e);}
     setLoading(false);
   }
@@ -182,7 +178,6 @@ function App() {
     window.scrollTo(0,0);
   }
 
-  // ✅ ABRIR PÁGINA DE PUBLICAR
   function openPublish(e) {
     if(e) e.preventDefault();
     if(!user) {
@@ -259,7 +254,7 @@ function App() {
       setMyListings(function(p){return p.filter(function(l){return l.id!==id;});});
       await loadData(); 
     } catch (err) {
-      console.error("Error al eliminar:", err); alert("Hubo un error al eliminar el anuncio. Revisa la consola.");
+      console.error("Error al eliminar:", err); alert("Hubo un error al eliminar el anuncio.");
     }
   }
 
@@ -304,7 +299,7 @@ function App() {
     e.preventDefault();
     if(!user){setAuthMode("login");setAuthModal(true);return;}
     if(!form.title || !form.cat || !form.phone){
-      setPubMsg("❌ Completá el título, la categoría y el teléfono de WhatsApp"); return;
+      setPubMsg("❌ Completá el título, la categoría y el teléfono"); return;
     }
     setPubBusy(true); setPubMsg("");
     
@@ -320,7 +315,6 @@ function App() {
         }));
       }
 
-      // Se inyectan las nuevas variables en la base de datos
       const ins=await db.from("listings").insert({
         title:form.title,description:form.desc,
         price:form.ptype==="consultar"?null:(parseFloat(raw)||null),
@@ -369,7 +363,7 @@ function App() {
     setPubBusy(false);
   }
 
-  // ✅ LOGICA DE FILTROS EN BÚSQUEDA
+  // ✅ LOGICA DE FILTROS EN MENÚ (DRAWER)
   function renderDynamicFilters() {
     const elements = [];
     const pushInput = (label, el) => { elements.push(React.createElement("div", { key: label, className: "filter-group" }, React.createElement("label", { className: "filter-label" }, label), el)); };
@@ -428,95 +422,39 @@ function App() {
     return elements;
   }
 
-  // ✅ LOGICA DE GENERACIÓN DE REQUISITOS EN PUBLICACIÓN
   function renderPublishDynamicFields() {
     if (!form.cat) return null;
     const elements = [];
-    const pushInput = (label, el) => {
-      elements.push(React.createElement("div", { key: label, style:{marginBottom: 18} },
-        React.createElement("div", { style:{fontSize: 13, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 6} }, label),
-        el
-      ));
-    };
+    const pushInput = (label, el) => { elements.push(React.createElement("div", { key: label, style:{marginBottom: 18} }, React.createElement("div", { style:{fontSize: 13, fontWeight: 600, color: "var(--color-text-muted)", marginBottom: 6} }, label), el)); };
 
     if (form.cat === "vehiculos" && form.sub !== "Planes de Ahorro") {
-      pushInput("Condición", React.createElement("select", { className: "fi", value: form.condicion, onChange: e => setForm({...form, condicion: e.target.value, km: ""}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"Nuevo"}, "Nuevo"), React.createElement("option", {value:"Usado"}, "Usado")
-      ));
-      if (form.condicion === "Usado" && ["Autos", "Camionetas / SUV", "Motos", "Camiones"].includes(form.sub)) {
-        pushInput("Kilometraje", React.createElement("input", { type: "number", className: "fi", placeholder: "Ej. 50000", value: form.km, onChange: e => setForm({...form, km: e.target.value}) }));
-      }
-      if (["Autos", "Camionetas / SUV", "Camiones"].includes(form.sub)) {
-        const currentYear = new Date().getFullYear(); const years = []; for (let y = currentYear; y >= 1970; y--) years.push(y);
-        pushInput("Año", React.createElement("select", { className: "fi", value: form.anio, onChange: e => setForm({...form, anio: e.target.value}) },
-          React.createElement("option", {value:""}, "Seleccionar..."), years.map(y => React.createElement("option", {key:y, value:y}, y))
-        ));
-      }
-      if (["Autos", "Camionetas / SUV"].includes(form.sub)) {
-        pushInput("Cantidad de puertas", React.createElement("select", { className: "fi", value: form.puertas, onChange: e => setForm({...form, puertas: e.target.value}) },
-          React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"3"}, "3 puertas"), React.createElement("option", {value:"5"}, "5 puertas")
-        ));
-      }
-      if (form.sub === "Motos") {
-        pushInput("Cilindrada", React.createElement("select", { className: "fi", value: form.cilindrada, onChange: e => setForm({...form, cilindrada: e.target.value}) },
-          React.createElement("option", {value:""}, "Seleccionar..."), ["150cc o menos", "151cc a 399cc", "+400cc"].map(c => React.createElement("option", {key:c, value:c}, c))
-        ));
-      }
+      pushInput("Condición", React.createElement("select", { className: "fi", value: form.condicion, onChange: e => setForm({...form, condicion: e.target.value, km: ""}) }, React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"Nuevo"}, "Nuevo"), React.createElement("option", {value:"Usado"}, "Usado")));
+      if (form.condicion === "Usado" && ["Autos", "Camionetas / SUV", "Motos", "Camiones"].includes(form.sub)) { pushInput("Kilometraje", React.createElement("input", { type: "number", className: "fi", placeholder: "Ej. 50000", value: form.km, onChange: e => setForm({...form, km: e.target.value}) })); }
+      if (["Autos", "Camionetas / SUV", "Camiones"].includes(form.sub)) { const currentYear = new Date().getFullYear(); const years = []; for (let y = currentYear; y >= 1970; y--) years.push(y); pushInput("Año", React.createElement("select", { className: "fi", value: form.anio, onChange: e => setForm({...form, anio: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), years.map(y => React.createElement("option", {key:y, value:y}, y)))); }
+      if (["Autos", "Camionetas / SUV"].includes(form.sub)) { pushInput("Cantidad de puertas", React.createElement("select", { className: "fi", value: form.puertas, onChange: e => setForm({...form, puertas: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"3"}, "3 puertas"), React.createElement("option", {value:"5"}, "5 puertas"))); }
+      if (form.sub === "Motos") { pushInput("Cilindrada", React.createElement("select", { className: "fi", value: form.cilindrada, onChange: e => setForm({...form, cilindrada: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["150cc o menos", "151cc a 399cc", "+400cc"].map(c => React.createElement("option", {key:c, value:c}, c)))); }
     }
-
     if (form.sub === "Ciclismo") {
-      pushInput("Condición", React.createElement("select", { className: "fi", value: form.condicion, onChange: e => setForm({...form, condicion: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"Nuevo"}, "Nuevo"), React.createElement("option", {value:"Usado"}, "Usado")
-      ));
-      pushInput("Modalidad", React.createElement("select", { className: "fi", value: form.modalidad, onChange: e => setForm({...form, modalidad: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Ruta", "MTB", "Triatlón", "Fixie", "Playera"].map(m => React.createElement("option", {key:m, value:m}, m))
-      ));
-      pushInput("Parte / Artículo", React.createElement("select", { className: "fi", value: form.parte, onChange: e => setForm({...form, parte: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Bici completa", "Cuadro", "Frenos", "Cambios / Transmisión", "Cassette / Piñones", "Manubrio", "Ciclocomputador", "Ruedas / Llantas", "Horquilla / Suspensión", "Asiento", "Pedales", "Indumentaria / Cascos"].map(p => React.createElement("option", {key:p, value:p}, p))
-      ));
+      pushInput("Condición", React.createElement("select", { className: "fi", value: form.condicion, onChange: e => setForm({...form, condicion: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), React.createElement("option", {value:"Nuevo"}, "Nuevo"), React.createElement("option", {value:"Usado"}, "Usado")));
+      pushInput("Modalidad", React.createElement("select", { className: "fi", value: form.modalidad, onChange: e => setForm({...form, modalidad: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Ruta", "MTB", "Triatlón", "Fixie", "Playera"].map(m => React.createElement("option", {key:m, value:m}, m))));
+      pushInput("Parte / Artículo", React.createElement("select", { className: "fi", value: form.parte, onChange: e => setForm({...form, parte: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Bici completa", "Cuadro", "Frenos", "Cambios / Transmisión", "Cassette / Piñones", "Manubrio", "Ciclocomputador", "Ruedas / Llantas", "Horquilla / Suspensión", "Asiento", "Pedales", "Indumentaria / Cascos"].map(p => React.createElement("option", {key:p, value:p}, p))));
     }
-
-    if (form.sub === "Computación") {
-      pushInput("Formato", React.createElement("select", { className: "fi", value: form.formato, onChange: e => setForm({...form, formato: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Escritorio", "Laptop"].map(f => React.createElement("option", {key:f, value:f}, f))
-      ));
-    }
-
+    if (form.sub === "Computación") { pushInput("Formato", React.createElement("select", { className: "fi", value: form.formato, onChange: e => setForm({...form, formato: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Escritorio", "Laptop"].map(f => React.createElement("option", {key:f, value:f}, f)))); }
     if (form.sub === "Casas" || form.sub === "Departamentos") {
-      pushInput("Dormitorios", React.createElement("select", { className: "fi", value: form.dormitorios, onChange: e => setForm({...form, dormitorios: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["1", "2", "3", "4", "5+"].map(d => React.createElement("option", {key:d, value:d}, d))
-      ));
-      pushInput("Ambientes", React.createElement("select", { className: "fi", value: form.ambientes, onChange: e => setForm({...form, ambientes: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Monoambiente", "2 ambientes", "3 ambientes", "4+ ambientes"].map(a => React.createElement("option", {key:a, value:a}, a))
-      ));
-      pushInput("Publica", React.createElement("select", { className: "fi", value: form.publica, onChange: e => setForm({...form, publica: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("option", {key:p, value:p}, p))
-      ));
+      pushInput("Dormitorios", React.createElement("select", { className: "fi", value: form.dormitorios, onChange: e => setForm({...form, dormitorios: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["1", "2", "3", "4", "5+"].map(d => React.createElement("option", {key:d, value:d}, d))));
+      pushInput("Ambientes", React.createElement("select", { className: "fi", value: form.ambientes, onChange: e => setForm({...form, ambientes: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Monoambiente", "2 ambientes", "3 ambientes", "4+ ambientes"].map(a => React.createElement("option", {key:a, value:a}, a))));
+      pushInput("Publica", React.createElement("select", { className: "fi", value: form.publica, onChange: e => setForm({...form, publica: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("option", {key:p, value:p}, p))));
     }
-
     if (form.sub === "Terrenos / Lotes" || form.sub === "Galpones") {
       pushInput("Área (m²)", React.createElement("input", { type: "number", className: "fi", placeholder: "Ej. 300", value: form.area, onChange: e => setForm({...form, area: e.target.value}) }));
-      pushInput("Publica", React.createElement("select", { className: "fi", value: form.publica, onChange: e => setForm({...form, publica: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("option", {key:p, value:p}, p))
-      ));
+      pushInput("Publica", React.createElement("select", { className: "fi", value: form.publica, onChange: e => setForm({...form, publica: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Inmobiliaria", "Dueño directo"].map(p => React.createElement("option", {key:p, value:p}, p))));
     }
-
-    if (form.sub === "Ropa Mujer" || form.sub === "Ropa Hombre") {
-      pushInput("Talle", React.createElement("select", { className: "fi", value: form.talle, onChange: e => setForm({...form, talle: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["XS", "S", "M", "L", "XL", "XXL"].map(t => React.createElement("option", {key:t, value:t}, t))
-      ));
-    }
+    if (form.sub === "Ropa Mujer" || form.sub === "Ropa Hombre") { pushInput("Talle", React.createElement("select", { className: "fi", value: form.talle, onChange: e => setForm({...form, talle: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["XS", "S", "M", "L", "XL", "XXL"].map(t => React.createElement("option", {key:t, value:t}, t)))); }
     if (form.sub === "Zapatillas") {
       pushInput("Talle (Ej. 40)", React.createElement("input", { type: "number", className: "fi", placeholder: "Ej. 40", value: form.talle, onChange: e => setForm({...form, talle: e.target.value}) }));
-      pushInput("Género", React.createElement("select", { className: "fi", value: form.genero, onChange: e => setForm({...form, genero: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Hombre", "Mujer", "Unisex"].map(g => React.createElement("option", {key:g, value:g}, g))
-      ));
+      pushInput("Género", React.createElement("select", { className: "fi", value: form.genero, onChange: e => setForm({...form, genero: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Hombre", "Mujer", "Unisex"].map(g => React.createElement("option", {key:g, value:g}, g))));
     }
-    if (form.sub === "Relojes") {
-      pushInput("Movimiento", React.createElement("select", { className: "fi", value: form.movimiento, onChange: e => setForm({...form, movimiento: e.target.value}) },
-        React.createElement("option", {value:""}, "Seleccionar..."), ["Cuarzo", "Automático", "A cuerda"].map(m => React.createElement("option", {key:m, value:m}, m))
-      ));
-    }
+    if (form.sub === "Relojes") { pushInput("Movimiento", React.createElement("select", { className: "fi", value: form.movimiento, onChange: e => setForm({...form, movimiento: e.target.value}) }, React.createElement("option", {value:""}, "Seleccionar..."), ["Cuarzo", "Automático", "A cuerda"].map(m => React.createElement("option", {key:m, value:m}, m)))); }
 
     return elements.length > 0 ? React.createElement("div", {style:{padding: "20px", background: "var(--color-main-bg)", borderRadius: 12, border: "1px solid var(--color-border)", marginBottom: 24}}, 
       React.createElement("h3", {style:{fontSize: 16, fontWeight: 800, marginBottom: 16, color: "var(--color-text-main)"}}, "🛠️ Características Específicas"),
@@ -524,14 +462,19 @@ function App() {
     ) : null;
   }
 
+  // Filtrado general para pestañas de listado
   const filtered=recent.filter(function(l){
     return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
   });
-  const searchResults=recent.filter(function(l){
-    return search && l.title.toLowerCase().includes(search.toLowerCase());
-  });
   
-  const catSubs=(getCat(form.cat)||{}).subs||[];
+  // Filtrado de la barra de búsqueda superior en tiempo real
+  const searchResults = recent.filter(function(l) {
+    if(!search.trim()) return false;
+    return l.title.toLowerCase().includes(search.toLowerCase()) || 
+           (l.category_id && l.category_id.toLowerCase().includes(search.toLowerCase())) ||
+           (l.subcategory && l.subcategory.toLowerCase().includes(search.toLowerCase()));
+  });
+
   const activeCatData=getCat(activeCat);
 
   return React.createElement("div",{style:{fontFamily:"'Sora','Nunito',sans-serif",background:"var(--color-main-bg)",minHeight:"100vh",color:"var(--color-text-main)",display:"flex",flexDirection:"column"}},
@@ -540,21 +483,12 @@ function App() {
       @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
       
       :root {
-        --color-hero-bg: #1B263B;
-        --color-main-bg: #FBFBF9;
-        --color-surface-banner: #415A77;
-        --color-search-bg: rgba(255, 255, 255, 0.1);
-        --color-accent: #E07A5F;
-        --color-text-hero: #FFFFFF;
-        --color-text-main: #22223B;
-        --color-text-muted: #8D99AE;
-        --color-surface: #FFFFFF;
-        --color-border: #D8DEE9;
+        --color-hero-bg: #1B263B; --color-main-bg: #FBFBF9; --color-surface-banner: #415A77;
+        --color-search-bg: rgba(255, 255, 255, 0.1); --color-accent: #E07A5F; --color-text-hero: #FFFFFF;
+        --color-text-main: #22223B; --color-text-muted: #8D99AE; --color-surface: #FFFFFF; --color-border: #D8DEE9;
       }
-
       *{box-sizing:border-box;margin:0;padding:0}
       ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--color-accent);border-radius:3px}
-      
       ::placeholder { color: var(--color-text-muted); opacity: 0.8; }
 
       .nl{color:var(--color-text-hero);font-size:13px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer;background:none;border:none;font-family:inherit;transition:background .2s}
@@ -587,18 +521,15 @@ function App() {
       .ipi img{width:100%;height:100%;object-fit:cover}
       .irb{position:absolute;top:3px;right:3px;background:var(--color-hero-bg);color:var(--color-text-hero);border:none;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;font-family:inherit}
       .irb:hover{background:var(--color-accent)}
-      .tag{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:700}
       
       .page-container { flex: 1; max-width: 1200px; margin: 0 auto; padding: 40px 20px; width: 100%; }
       .listing-grid { display: grid; grid-template-columns: 1fr 400px; gap: 40px; }
       @media(max-width: 900px){ .listing-grid { grid-template-columns: 1fr; } }
-      @media(max-width: 600px){ .mg { grid-template-columns: repeat(2,1fr)!important; } }
-
-      /* ESTILOS PARA CATEGORÍAS Y SUBCATEGORÍAS */
+      
+      /* CATEGORÍAS */
       .hs-container { display: flex; overflow-x: auto; gap: 16px; padding: 10px 0 24px 0; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
       .hs-container::-webkit-scrollbar { display: none; }
       .hs-container { -ms-overflow-style: none; scrollbar-width: none; }
-      
       .cat-card { flex: 0 0 auto; width: 130px; cursor: pointer; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease; }
       @media(max-width: 600px){ .cat-card { width: 110px; } }
       .cat-card:hover { transform: translateY(-4px); }
@@ -606,32 +537,36 @@ function App() {
       .cat-card.active .cat-img-box { border-color: var(--color-accent); transform: scale(0.98); box-shadow: 0 0 0 4px rgba(224, 122, 95, 0.15); }
       .cat-img-box img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
       .cat-card:hover .cat-img-box img { transform: scale(1.08); }
-      
       .cat-title { font-size: 15px; font-weight: 700; color: var(--color-text-main); text-align: left; position: relative; align-self: flex-start; }
       .cat-title::after { content: ''; position: absolute; width: 100%; transform: scaleX(0); height: 2px; bottom: -2px; left: 0; background-color: var(--color-text-main); transform-origin: bottom left; transition: transform 0.25s ease-out; }
       .cat-card:hover .cat-title::after, .cat-card.active .cat-title::after { transform: scaleX(1); }
-
       .subcat-wrapper { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
       .sub-pill { padding: 10px 20px; border-radius: 99px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; border: 1px solid var(--color-border); white-space: nowrap; font-family: inherit; }
       .sub-pill.active { background: var(--color-accent); color: var(--color-text-hero); border-color: var(--color-accent); box-shadow: 0 4px 10px rgba(224, 122, 95, 0.3); }
       .sub-pill:not(.active) { background: var(--color-surface); color: var(--color-text-main); }
       .sub-pill:not(.active):hover { border-color: var(--color-text-muted); background: var(--color-main-bg); }
-      
       .fade-slide-down { animation: fadeSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       @keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+
+      /* HEADER & DROPDOWNS */
       .nav-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; height: 66px; width: 100%; overflow: hidden; }
       .logo-icon { width: 38px; height: 38px; font-size: 20px; }
       .logo-title { font-size: 16px; }
       .logo-sub { font-size: 10px; }
-      .search-container { flex: 1; max-width: 480px; height: 42px; padding: 0 14px; }
+      .search-container { flex: 1; max-width: 480px; height: 42px; padding: 0 14px; position: relative; }
       .mobile-only { display: none; }
-      
       .hamburger { background: none; border: none; color: var(--color-text-hero); font-size: 28px; cursor: pointer; padding: 4px 0 4px 8px; line-height: 1; }
       .mobile-dropdown { position: absolute; top: 66px; right: 16px; background: var(--color-hero-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 50; display: flex; flex-direction: column; min-width: 240px; }
       .mobile-dropdown-item { padding: 14px 16px; color: var(--color-text-hero); text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 8px; transition: background 0.2s; text-align: left; background: transparent; border: none; font-family: inherit; cursor: pointer; width: 100%; display: block; }
       .mobile-dropdown-item:hover { background: var(--color-search-bg); }
 
-      /* ESTILOS DEL MENÚ LATERAL (DRAWER) DE FILTROS */
+      /* ✅ NUEVO: DROPDOWN AUTOCOMPLETADO BÚSQUEDA */
+      .search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 400; max-height: 320px; overflow-y: auto; }
+      .search-item { padding: 12px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid var(--color-border); }
+      .search-item:last-child { border-bottom: none; }
+      .search-item:hover { background: var(--color-main-bg); }
+
+      /* DRAWER DE FILTROS */
       .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; opacity: 0; animation: fadeIn 0.3s forwards; backdrop-filter: blur(2px); }
       .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: 320px; background: var(--color-surface); z-index: 2001; transform: translateX(-100%); animation: slideInLeft 0.3s forwards; display: flex; flex-direction: column; box-shadow: 4px 0 25px rgba(0,0,0,0.15); }
       .drawer-header { padding: 20px 24px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-main-bg); }
@@ -663,7 +598,6 @@ function App() {
       }
     `),
 
-
     // ─── HEADER / NAVBAR ──────────────────────────────────────────────
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:"var(--color-hero-bg)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.15)":"none",transition:"all .3s"}},
       React.createElement("div",{className:"nav-container"},
@@ -674,25 +608,47 @@ function App() {
             React.createElement("div",{className:"logo-sub", style:{color:"var(--color-text-muted)",letterSpacing:"1.5px",textTransform:"uppercase"}},"Clasificados")
           )
         ),
+        
+        // ✅ NUEVA BARRA DE BÚSQUEDA INTERACTIVA
         React.createElement("div",{className:"search-container", style:{background:"var(--color-search-bg)",borderRadius:12,display:"flex",alignItems:"center",border:"1px solid rgba(255,255,255,.1)"}},
           React.createElement("span",{style:{marginRight:8,fontSize:16,color:"var(--color-text-hero)",opacity:.7}},"🔍"),
           React.createElement("input",{
             style:{flex:1,border:"none",outline:"none",fontSize:14,fontFamily:"inherit",background:"transparent",color:"var(--color-text-hero)", width:"100%"},
             placeholder:"Buscar...",
             value:search,
-            onChange:function(e){
-              const val = e.target.value;
-              setSearch(val);
-              if (val.trim() !== "") {
-                window.history.replaceState({}, '', '/busqueda?q=' + encodeURIComponent(val));
+            onFocus: () => setIsSearchFocused(true),
+            onBlur: () => setTimeout(() => setIsSearchFocused(false), 200),
+            onChange: function(e){ setSearch(e.target.value); },
+            onKeyDown: function(e){
+              if (e.key === 'Enter' && search.trim() !== "") {
+                window.history.pushState({}, '', '/busqueda?q=' + encodeURIComponent(search));
                 setCurrentView("search");
-              } else {
-                window.history.pushState({}, '', '/');
-                setCurrentView("home");
+                setIsSearchFocused(false);
+                e.target.blur();
               }
             }
-          })
+          }),
+          
+          // Dropdown de Sugerencias
+          (isSearchFocused && search.trim() !== "") && React.createElement("div", {className: "search-dropdown"},
+            searchResults.length > 0 ? searchResults.slice(0,6).map(l =>
+              React.createElement("div", {
+                key: l.id,
+                className: "search-item",
+                onClick: () => { openListing(l); setSearch(""); }
+              },
+                React.createElement("div", {style:{width:36, height:36, borderRadius:8, background:"var(--color-main-bg)", overflow:"hidden", flexShrink:0}},
+                  l.listing_images && l.listing_images[0] ? React.createElement("img", {src: l.listing_images[0].url, style:{width:"100%", height:"100%", objectFit:"cover"}}) : React.createElement("div",{style:{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}},"📦")
+                ),
+                React.createElement("div", {style:{flex:1, minWidth:0}},
+                  React.createElement("div", {style:{fontSize:13, fontWeight:700, color:"var(--color-text-main)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}, l.title),
+                  React.createElement("div", {style:{fontSize:12, color:"var(--color-accent)", fontWeight:800}}, l.price_label || "Consultar")
+                )
+              )
+            ) : React.createElement("div", {style:{padding:16, fontSize:13, color:"var(--color-text-muted)", textAlign:"center"}}, "Presioná Enter para buscar todos los anuncios de '" + search + "'.")
+          )
         ),
+        
         React.createElement("div",{className:"desktop-only", style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
           user
             ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
@@ -909,7 +865,34 @@ function App() {
             React.createElement("h1", {style:{fontSize:26, fontWeight:800, color:"var(--color-text-main)", marginBottom:12, lineHeight:1.3}}, currentListing.title),
             React.createElement("div", {style:{fontSize:36, fontWeight:900, color:"var(--color-accent)", marginBottom:24}}, currentListing.price_label||"Consultar"),
             
-            React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:12, marginBottom:32, paddingBottom:24, borderBottom:"1px solid var(--color-border)"}},
+            (function(){
+              const feats = [
+                { l: "Condición", v: currentListing.condicion },
+                { l: "Kilometraje", v: currentListing.kilometraje ? fmtPrice(currentListing.kilometraje.toString()) + " km" : null },
+                { l: "Año", v: currentListing.anio },
+                { l: "Puertas", v: currentListing.puertas ? currentListing.puertas + " puertas" : null },
+                { l: "Cilindrada", v: currentListing.cilindrada },
+                { l: "Modalidad", v: currentListing.modalidad },
+                { l: "Parte", v: currentListing.parte },
+                { l: "Formato", v: currentListing.formato },
+                { l: "Dormitorios", v: currentListing.dormitorios },
+                { l: "Ambientes", v: currentListing.ambientes },
+                { l: "Área", v: currentListing.area ? currentListing.area + " m²" : null },
+                { l: "Talle", v: currentListing.talle },
+                { l: "Género", v: currentListing.genero },
+                { l: "Movimiento", v: currentListing.movimiento },
+                { l: "Vendedor", v: currentListing.publica }
+              ].filter(f => f.v);
+
+              if(feats.length === 0) return null;
+              return React.createElement("div", {style: {display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 28}},
+                feats.map(f => React.createElement("div", {key: f.l, style: {background: "var(--color-main-bg)", border: "1px solid var(--color-border)", padding: "8px 14px", borderRadius: 10, fontSize: 13, color: "var(--color-text-main)", fontWeight: 700}}, 
+                  React.createElement("span", {style: {color: "var(--color-text-muted)", fontWeight: 500, marginRight: 6}}, f.l + ":"), f.v
+                ))
+              );
+            })(),
+            
+            React.createElement("div", {style:{display:"flex", flexDirection:"column", gap:12, marginBottom:32, paddingBottom:24, borderBottom:"1px solid var(--color-border)", paddingTop:24, borderTop:"1px solid var(--color-border)"}},
               currentListing.location && React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"var(--color-text-muted)", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"📍"), "Ubicación: " + currentListing.location),
               React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"var(--color-text-muted)", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"🕐"), "Publicado hace " + timeAgo(currentListing.created_at)),
               React.createElement("div", {style:{display:"flex", alignItems:"center", gap:10, color:"var(--color-text-muted)", fontSize:14}}, React.createElement("span", {style:{fontSize:18}},"👁️"), currentListing.views + " personas vieron esto")
@@ -970,7 +953,7 @@ function App() {
       )
     ),
 
-    // ─── VISTA: PUBLICAR (NUEVA PÁGINA COMPLETA) ──────────────────────────────────
+    // ─── VISTA: PUBLICAR ──────────────────────────────────
     currentView === "publish" && React.createElement("div", {className:"page-container", style:{maxWidth: 800}},
       React.createElement("div", {style:{marginBottom: 24}},
         React.createElement("button", {onClick: goHome, className: "nl", style:{color: "var(--color-text-muted)", padding: 0}}, "← Volver al inicio"),
@@ -993,7 +976,6 @@ function App() {
           )
         ),
 
-        // ✅ REQUISITOS DINÁMICOS BASADOS EN LOS FILTROS
         renderPublishDynamicFields(),
 
         React.createElement("div",{style:{marginBottom:18}},
@@ -1051,10 +1033,18 @@ function App() {
       )
     ),
 
+    // ─── VISTA: BÚSQUEDA ──────────────────────────────────
     currentView === "search" && React.createElement("div", {className:"page-container"},
-      React.createElement("div", {style:{marginBottom:32}},
-        React.createElement("h1", {style:{fontSize:28, fontWeight:800, color:"var(--color-text-main)"}}, 'Resultados para "', React.createElement("span", {style:{color:"var(--color-accent)"}}, search), '"'),
-        React.createElement("div", {style:{fontSize:14, color:"var(--color-text-muted)", marginTop:8}}, searchResults.length + " clasificados encontrados")
+      React.createElement("div", {style:{marginBottom:32, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:16}},
+        React.createElement("div", null,
+           React.createElement("h1", {style:{fontSize:28, fontWeight:800, color:"var(--color-text-main)"}}, 'Resultados para "', React.createElement("span", {style:{color:"var(--color-accent)"}}, search), '"'),
+           React.createElement("div", {style:{fontSize:14, color:"var(--color-text-muted)", marginTop:8}}, searchResults.length + " clasificados encontrados")
+        ),
+        React.createElement("button", {
+          className: "pb",
+          style: { background: "var(--color-surface)", color: "var(--color-text-main)", border: "1px solid var(--color-border)", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: "8px" },
+          onClick: function() { setIsFilterMenuOpen(true); }
+        }, "⚙️ Filtros Avanzados")
       ),
       searchResults.length === 0 ? 
         React.createElement("div", {className:"es", style:{background:"var(--color-surface)", borderRadius:20, padding:60}}, "📭 No encontramos nada que coincida con tu búsqueda. Intenta con otras palabras.") :
