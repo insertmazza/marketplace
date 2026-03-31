@@ -351,6 +351,7 @@ function App() {
   }
 
   // ✅ LOGICA DE RENDERIZADO DE FILTROS DINÁMICOS
+// ✅ LOGICA DE RENDERIZADO DE FILTROS DINÁMICOS
   function renderDynamicFilters() {
     const elements = [];
     const pushInput = (label, el) => {
@@ -360,44 +361,76 @@ function App() {
       ));
     };
 
-    // Filtros de Auto / SUV
-    if (activeSubcat === "Autos" || activeSubcat === "Camionetas / SUV") {
+    // -- 1. FILTROS PARA VEHÍCULOS (Autos, Camionetas, Motos, Camiones, etc.) --
+    if (activeCat === "vehiculos" && activeSubcat !== "Planes de Ahorro") {
       const currentYear = new Date().getFullYear();
       const years = [];
       for (let y = currentYear; y >= 1970; y--) years.push(y);
       
-      pushInput("Año", React.createElement("select", { className: "filter-input", value: filters.anio || "", onChange: e => setFilters(Object.assign({}, filters, {anio: e.target.value})) },
-        React.createElement("option", { value: "" }, "Cualquier año"),
-        years.map(y => React.createElement("option", { key: y, value: y }, y))
-      ));
-      pushInput("Cantidad de puertas", React.createElement("div", { className: "filter-radio-group" },
-        ["3", "5"].map(p => React.createElement("label", { key: p, className: "filter-radio-label" },
-          React.createElement("input", { type: "radio", name: "puertas", value: p, checked: filters.puertas === p, onChange: e => setFilters(Object.assign({}, filters, {puertas: e.target.value})) }),
-          p + " puertas"
-        ))
-      ));
+      // Condición (Aplica a toda la categoría vehículos)
       pushInput("Condición", React.createElement("div", { className: "filter-radio-group" },
         ["Nuevo", "Usado"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
-          React.createElement("input", { type: "radio", name: "condicion", value: c, checked: filters.condicion === c, onChange: e => setFilters(Object.assign({}, filters, {condicion: e.target.value, kilometraje: ""})) }),
+          React.createElement("input", { type: "radio", name: "condicion", value: c, checked: filters.condicion === c, onChange: e => setFilters(Object.assign({}, filters, {condicion: e.target.value, kmMin: "", kmMax: ""})) }),
           c
         ))
       ));
-      if (filters.condicion === "Usado") {
-        pushInput("Kilometraje", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 50000", value: filters.kilometraje || "", onChange: e => setFilters(Object.assign({}, filters, {kilometraje: e.target.value})) }));
+
+      // Kilometraje Min/Max (Aplica si es Usado, para Autos, SUV, Motos y Camiones)
+      if (filters.condicion === "Usado" && ["Autos", "Camionetas / SUV", "Motos", "Camiones"].includes(activeSubcat)) {
+        pushInput("Kilometraje", React.createElement("div", { style: { display: "flex", gap: 10 } },
+          React.createElement("input", { type: "number", placeholder: "Mínimo", className: "filter-input", value: filters.kmMin || "", onChange: e => setFilters(Object.assign({}, filters, {kmMin: e.target.value})) }),
+          React.createElement("input", { type: "number", placeholder: "Máximo", className: "filter-input", value: filters.kmMax || "", onChange: e => setFilters(Object.assign({}, filters, {kmMax: e.target.value})) })
+        ));
+      }
+
+      // Año (Autos, SUV y Camiones)
+      if (["Autos", "Camionetas / SUV", "Camiones"].includes(activeSubcat)) {
+        pushInput("Año", React.createElement("select", { className: "filter-input", value: filters.anio || "", onChange: e => setFilters(Object.assign({}, filters, {anio: e.target.value})) },
+          React.createElement("option", { value: "" }, "Cualquier año"),
+          years.map(y => React.createElement("option", { key: y, value: y }, y))
+        ));
+      }
+
+      // Cantidad de Puertas (Solo Autos y SUV)
+      if (["Autos", "Camionetas / SUV"].includes(activeSubcat)) {
+        pushInput("Cantidad de puertas", React.createElement("div", { className: "filter-radio-group" },
+          ["3", "5"].map(p => React.createElement("label", { key: p, className: "filter-radio-label" },
+            React.createElement("input", { type: "radio", name: "puertas", value: p, checked: filters.puertas === p, onChange: e => setFilters(Object.assign({}, filters, {puertas: e.target.value})) }),
+            p + " puertas"
+          ))
+        ));
+      }
+
+      // Cilindrada (Solo Motos)
+      if (activeSubcat === "Motos") {
+        pushInput("Cilindrada", React.createElement("div", { className: "filter-radio-group" },
+          ["150cc o menos", "151cc a 399cc", "+400cc"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
+            React.createElement("input", { type: "radio", name: "cilindrada", value: c, checked: filters.cilindrada === c, onChange: e => setFilters(Object.assign({}, filters, {cilindrada: e.target.value})) }),
+            c
+          ))
+        ));
       }
     }
 
-    // Filtros de Motos
-    if (activeSubcat === "Motos") {
-       pushInput("Cilindrada", React.createElement("div", { className: "filter-radio-group" },
-        ["150cc o menos", "151cc a 399cc", "+400cc"].map(c => React.createElement("label", { key: c, className: "filter-radio-label" },
-          React.createElement("input", { type: "radio", name: "cilindrada", value: c, checked: filters.cilindrada === c, onChange: e => setFilters(Object.assign({}, filters, {cilindrada: e.target.value})) }),
-          c
+    // -- 2. FILTROS PARA DEPORTES (Ciclismo) --
+    if (activeSubcat === "Ciclismo") {
+      pushInput("Modalidad", React.createElement("select", { className: "filter-input", value: filters.modalidad || "", onChange: e => setFilters(Object.assign({}, filters, {modalidad: e.target.value})) },
+        React.createElement("option", { value: "" }, "Cualquiera"),
+        ["Ruta", "MTB", "Triatlón", "Fixie", "Playera"].map(m => React.createElement("option", { key: m, value: m }, m))
+      ));
+    }
+
+    // -- 3. FILTROS PARA ELECTRÓNICA (Computación) --
+    if (activeSubcat === "Computación") {
+      pushInput("Formato", React.createElement("div", { className: "filter-radio-group" },
+        ["Escritorio", "Laptop"].map(f => React.createElement("label", { key: f, className: "filter-radio-label" },
+          React.createElement("input", { type: "radio", name: "formato", value: f, checked: filters.formato === f, onChange: e => setFilters(Object.assign({}, filters, {formato: e.target.value})) }),
+          f
         ))
       ));
     }
 
-    // Filtros Inmuebles Residenciales
+    // -- 4. FILTROS PARA INMUEBLES --
     if (activeSubcat === "Casas" || activeSubcat === "Departamentos") {
       pushInput("Dormitorios", React.createElement("select", { className: "filter-input", value: filters.dormitorios || "", onChange: e => setFilters(Object.assign({}, filters, {dormitorios: e.target.value})) },
         React.createElement("option", { value: "" }, "Cualquiera"),
@@ -415,7 +448,6 @@ function App() {
       ));
     }
 
-    // Filtros Inmuebles Terrenos/Galpones
     if (activeSubcat === "Terrenos / Lotes" || activeSubcat === "Galpones") {
       pushInput("Área (m²)", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 300", value: filters.area || "", onChange: e => setFilters(Object.assign({}, filters, {area: e.target.value})) }));
       pushInput("Publica", React.createElement("div", { className: "filter-radio-group" },
@@ -426,7 +458,7 @@ function App() {
       ));
     }
 
-    // Filtros de Ropa
+    // -- 5. FILTROS PARA ROPA Y MODA --
     if (activeSubcat === "Ropa Mujer" || activeSubcat === "Ropa Hombre") {
        pushInput("Talle", React.createElement("div", { className: "filter-radio-group" },
         ["XS", "S", "M", "L", "XL", "XXL"].map(t => React.createElement("button", {
@@ -438,7 +470,6 @@ function App() {
       ));
     }
 
-    // Filtros Zapatillas
     if (activeSubcat === "Zapatillas") {
        pushInput("Talle", React.createElement("input", { type: "number", className: "filter-input", placeholder: "Ej. 40", value: filters.talleCalzado || "", onChange: e => setFilters(Object.assign({}, filters, {talleCalzado: e.target.value})) }));
        pushInput("Género", React.createElement("div", { className: "filter-radio-group" },
@@ -449,7 +480,6 @@ function App() {
       ));
     }
 
-    // Filtros Relojes
     if (activeSubcat === "Relojes") {
        pushInput("Movimiento", React.createElement("select", { className: "filter-input", value: filters.movimiento || "", onChange: e => setFilters(Object.assign({}, filters, {movimiento: e.target.value})) },
         React.createElement("option", { value: "" }, "Cualquiera"),
@@ -459,7 +489,7 @@ function App() {
 
     return elements;
   }
-
+  
   const filtered=recent.filter(function(l){
     return (!search||l.title.toLowerCase().includes(search.toLowerCase()))&&(activeTab==="Todos"||l.category_id===activeTab);
   });
