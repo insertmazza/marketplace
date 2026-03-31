@@ -46,6 +46,7 @@ function App() {
   const [catListings,   setCatListings]   = useState([]);
   const [catLoading,    setCatLoading]    = useState(false);
   const [megaOpen,      setMegaOpen]      = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled,      setScrolled]      = useState(false);
   const [activeTab,     setActiveTab]     = useState("Todos");
   
@@ -436,22 +437,55 @@ function App() {
       
       .fade-slide-down { animation: fadeSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       @keyframes fadeSlideDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+      .nav-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; height: 66px; width: 100%; overflow: hidden; }
+      .logo-icon { width: 38px; height: 38px; font-size: 20px; }
+      .logo-title { font-size: 16px; }
+      .logo-sub { font-size: 10px; }
+      .search-container { flex: 1; max-width: 480px; height: 42px; padding: 0 14px; }
+      .mobile-only { display: none; }
+      
+      .hamburger { background: none; border: none; color: var(--color-text-hero); font-size: 28px; cursor: pointer; padding: 4px 0 4px 8px; line-height: 1; }
+      .mobile-dropdown { position: absolute; top: 66px; right: 16px; background: var(--color-hero-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 50; display: flex; flex-direction: column; min-width: 240px; }
+      .mobile-dropdown-item { padding: 14px 16px; color: var(--color-text-hero); text-decoration: none; font-size: 14px; font-weight: 600; border-radius: 8px; transition: background 0.2s; text-align: left; background: transparent; border: none; font-family: inherit; cursor: pointer; width: 100%; display: block; }
+      .mobile-dropdown-item:hover { background: var(--color-search-bg); }
+
+      /* Ajustes estrictos para pantallas pequeñas (< 768px) */
+      @media(max-width: 768px) {
+        .nav-container { padding: 0 12px; gap: 8px; }
+        .logo-icon { width: 30px; height: 30px; font-size: 16px; }
+        .logo-title { font-size: 13px; }
+        .logo-sub { font-size: 8px; }
+        .search-container { max-width: 170px; height: 36px; padding: 0 10px; }
+        .desktop-only { display: none !important; }
+        .mobile-only { display: flex !important; }
+      }
+      
+      /* Ajuste extra para celulares muy angostos (< 400px) */
+      @media(max-width: 400px) {
+        .search-container { max-width: 130px; }
+        .logo-text-wrapper { display: none; } /* Oculta texto, deja solo el cactus */
+      }
     `),
 
+// ─── HEADER / NAVBAR ──────────────────────────────────────────────
     React.createElement("nav",{style:{position:"sticky",top:0,zIndex:300,background:"var(--color-hero-bg)",boxShadow:scrolled?"0 4px 20px rgba(0,0,0,.15)":"none",transition:"all .3s"}},
-      React.createElement("div",{style:{maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",gap:10,height:66}},
-        React.createElement("div",{onClick:goHome, style:{display:"flex",alignItems:"center",gap:10,marginRight:16,flexShrink:0,cursor:"pointer"}},
-          React.createElement("div",{style:{width:38,height:38,background:"var(--color-accent)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}},"🌵"),
-          React.createElement("div",{style:{display:window.innerWidth<600?"none":"block"}},
-            React.createElement("div",{style:{color:"var(--color-text-hero)",fontWeight:800,fontSize:16,lineHeight:1.1}},"Compra en Jujuy"),
-            React.createElement("div",{style:{color:"var(--color-text-muted)",fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase"}},"Clasificados")
+      React.createElement("div",{className:"nav-container"},
+        
+        // LOGO & TÍTULO (Responsivo)
+        React.createElement("div",{onClick:goHome, style:{display:"flex",alignItems:"center",gap:8,marginRight:"auto",flexShrink:0,cursor:"pointer"}},
+          React.createElement("div",{className:"logo-icon", style:{background:"var(--color-accent)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}},"🌵"),
+          React.createElement("div",{className:"logo-text-wrapper"},
+            React.createElement("div",{className:"logo-title", style:{color:"var(--color-text-hero)",fontWeight:800,lineHeight:1.1}},"Compra en Jujuy"),
+            React.createElement("div",{className:"logo-sub", style:{color:"var(--color-text-muted)",letterSpacing:"1.5px",textTransform:"uppercase"}},"Clasificados")
           )
         ),
-        React.createElement("div",{style:{flex:1,maxWidth:480,background:"var(--color-search-bg)",borderRadius:12,display:"flex",alignItems:"center",padding:"0 14px",height:42,border:"1px solid rgba(255,255,255,.1)"}},
+        
+        // BARRA DE BÚSQUEDA (Contraíble)
+        React.createElement("div",{className:"search-container", style:{background:"var(--color-search-bg)",borderRadius:12,display:"flex",alignItems:"center",border:"1px solid rgba(255,255,255,.1)"}},
           React.createElement("span",{style:{marginRight:8,fontSize:16,color:"var(--color-text-hero)",opacity:.7}},"🔍"),
           React.createElement("input",{
-            style:{flex:1,border:"none",outline:"none",fontSize:15,fontFamily:"inherit",background:"transparent",color:"var(--color-text-hero)"},
-            placeholder:"Buscar clasificados...",
+            style:{flex:1,border:"none",outline:"none",fontSize:14,fontFamily:"inherit",background:"transparent",color:"var(--color-text-hero)", width:"100%"},
+            placeholder:"Buscar...",
             value:search,
             onChange:function(e){
               const val = e.target.value;
@@ -466,7 +500,9 @@ function App() {
             }
           })
         ),
-        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginLeft:"auto"}},
+        
+        // ACCIONES DESKTOP (Ocultas en Móvil)
+        React.createElement("div",{className:"desktop-only", style:{alignItems:"center",gap:4,marginLeft:"auto"}},
           user
             ? React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},
                 React.createElement("button",{className:"nl",onClick:openProfile,style:{display:"flex",alignItems:"center",gap:6,background:currentView==="profile"?"var(--color-search-bg)":"transparent"}},
@@ -481,9 +517,37 @@ function App() {
               ),
           React.createElement("button",{className:"nl",style:{display:"flex",alignItems:"center",gap:5},onClick:function(){setMegaOpen(!megaOpen);}},"Categorías ",React.createElement("span",{style:{fontSize:10,display:"inline-block",transform:megaOpen?"rotate(180deg)":"none",transition:"transform .2s"}},"▼")),
           React.createElement("button",{className:"pb",onClick:function(){setPublishModal(true);}},"✏️ Publicar")
+        ),
+        
+        // ACCIONES MOBILE: HAMBURGUESA (Oculta en Desktop)
+        React.createElement("div",{className:"mobile-only", style:{alignItems:"center", marginLeft:"auto"}},
+          React.createElement("button", {
+            className: "hamburger",
+            onClick: function() { setIsMobileMenuOpen(!isMobileMenuOpen); }
+          }, "☰")
         )
       ),
-      megaOpen && React.createElement("div",{style:{position:"absolute",top:"calc(100% + 8px)",left:0,right:0,background:"var(--color-surface)",borderRadius:"0 0 20px 20px",boxShadow:"0 20px 60px rgba(0,0,0,.15)",zIndex:200,padding:28}},
+
+      // DROPDOWN MOBILE
+      isMobileMenuOpen && React.createElement("div", { className: "mobile-dropdown" },
+        React.createElement("button", {
+          className: "mobile-dropdown-item",
+          onClick: function() {
+            setIsMobileMenuOpen(false);
+            if (user) { openProfile(); } else { setAuthMode("login"); setAuthModal(true); }
+          }
+        }, "👤 Mi Perfil"),
+        React.createElement("a", {
+          className: "mobile-dropdown-item",
+          href: "https://wa.me/5493886108072?text=Hola,%20me%20interesa%20adquirir%20un%20espacio%20publicitario",
+          target: "_blank",
+          rel: "noopener noreferrer",
+          onClick: function() { setIsMobileMenuOpen(false); }
+        }, "📢 Adquirir espacio publicitario")
+      ),
+
+      // MEGA MENU DESKTOP (Intacto)
+      megaOpen && React.createElement("div",{className:"desktop-only", style:{position:"absolute",top:"calc(100% + 8px)",left:0,right:0,background:"var(--color-surface)",borderRadius:"0 0 20px 20px",boxShadow:"0 20px 60px rgba(0,0,0,.15)",zIndex:200,padding:28}},
         React.createElement("div",{className:"mg",style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,maxWidth:1200,margin:"0 auto"}},
           categories.map(function(cat){
             return React.createElement("div",{key:cat.id,onClick:function(){selectCat(cat.id);setMegaOpen(false);}},
@@ -500,7 +564,6 @@ function App() {
         )
       )
     ),
-
 currentView === "home" && React.createElement(React.Fragment, null,
       // SECCIÓN HERO CON IMAGEN DE FONDO Y OVERLAY
       React.createElement("div",{style:{
